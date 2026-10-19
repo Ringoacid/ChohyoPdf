@@ -7,7 +7,7 @@
 - 外部パッケージへの依存はありません。
 - 対応フレームワークは .NET Framework 4.8 以降、.NET 8、.NET 10 です（.NET 9 では net8.0 版が使われます）。
 
-サンプルコードと出力結果の画像を載せた [説明書](docs/manual.md) に、機能ごとの使い方をまとめています。
+サンプルコードと出力結果の画像を載せた [説明書](https://github.com/Ringoacid/ChohyoPdf/blob/main/docs/manual.md) に、機能ごとの使い方をまとめています。
 
 ## できること
 
@@ -23,6 +23,12 @@
 | 座標指定の描画 | 帳票向けに、座標を指定してテキストボックス（折り返し・縮小して全体を表示）や図形を描ける低レベル API |
 
 PDF の読み込み・編集はできません（生成専用です）。
+
+## インストール
+
+```
+dotnet add package ChohyoPdf
+```
 
 ## 使い方
 
@@ -149,4 +155,4 @@ python docs/tools/build_docs.py      # 説明書と画像を作り直す
 
 ## ライセンス
 
-[MIT License](LICENSE)
+[MIT License](https://github.com/Ringoacid/ChohyoPdf/blob/main/LICENSE)

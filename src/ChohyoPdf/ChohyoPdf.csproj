@@ -13,11 +13,21 @@
 
     <PackageId>ChohyoPdf</PackageId>
     <Version>0.1.0</Version>
-    <Authors>ChohyoPdf contributors</Authors>
+    <Authors>Ringoacid</Authors>
+    <Copyright>Copyright (c) 2026 Ringoacid</Copyright>
     <Description>MIT ライセンスの PDF 生成ライブラリ。日本語テキスト（TrueType サブセット埋め込み・禁則処理）、表、画像、図形、自動折り返し・自動改ページに対応。.NET Framework 4.8 / .NET 8 / .NET 10。</Description>
     <PackageTags>pdf;japanese;report;帳票;table;layout</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageProjectUrl>https://github.com/Ringoacid/ChohyoPdf</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/Ringoacid/ChohyoPdf</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+
+    <!-- デバッグ時にソースをたどれるよう、シンボルパッケージ（.snupkg）と Source Link の情報を含める -->
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
   </PropertyGroup>
 
   <ItemGroup>

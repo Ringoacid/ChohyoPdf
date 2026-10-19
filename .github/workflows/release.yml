@@ -1,0 +1,44 @@
+# v1.2.3 のようなタグをプッシュすると、テストしてから NuGet に公開する。
+# nuget.org の Trusted Publishing を使うので、API キーは保存しない。
+# 必要な設定:
+#   - nuget.org の Trusted Publishing のポリシー（Workflow File は release.yml）
+#   - リポジトリのシークレット NUGET_USER（nuget.org のユーザー名。メールアドレスではない）
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    permissions:
+      contents: read
+      id-token: write   # Trusted Publishing で使う OIDC トークンの発行を許可する
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      - name: Test
+        run: dotnet test tests/ChohyoPdf.Tests -c Release
+
+      - name: Pack
+        shell: bash
+        run: dotnet pack src/ChohyoPdf -c Release -o artifacts -p:Version=${GITHUB_REF_NAME#v}
+
+      # 1 時間だけ有効な API キーを受け取る
+      - name: NuGet login
+        uses: NuGet/login@v1
+        id: login
+        with:
+          user: ${{ secrets.NUGET_USER }}
+
+      # .snupkg（シンボル）も同じフォルダから自動でアップロードされる
+      - name: NuGet push
+        shell: bash
+        run: dotnet nuget push "artifacts/*.nupkg" --api-key ${{ steps.login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json

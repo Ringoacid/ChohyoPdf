@@ -1,0 +1,26 @@
+# プッシュとプルリクエストのたびに、ビルドとテストを実行する
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-and-test:
+    # net48 のテストを実行するため Windows を使う
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      - name: Build
+        run: dotnet build ChohyoPdf.sln -c Release
+
+      - name: Test
+        run: dotnet test tests/ChohyoPdf.Tests -c Release --no-build
