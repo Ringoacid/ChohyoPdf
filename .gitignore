@@ -1,0 +1,9 @@
+bin/
+obj/
+artifacts/
+output/
+*.user
+.vs/
+# 説明書の生成時に出力する PDF（フォントのサブセットを含むため、リポジトリには入れない）
+docs/examples/output/
+__pycache__/

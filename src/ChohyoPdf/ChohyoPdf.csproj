@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net48;net8.0;net10.0</TargetFrameworks>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <RootNamespace>ChohyoPdf</RootNamespace>
+    <AssemblyName>ChohyoPdf</AssemblyName>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <Deterministic>true</Deterministic>
+
+    <PackageId>ChohyoPdf</PackageId>
+    <Version>0.1.0</Version>
+    <Authors>ChohyoPdf contributors</Authors>
+    <Description>MIT ライセンスの PDF 生成ライブラリ。日本語テキスト（TrueType サブセット埋め込み・禁則処理）、表、画像、図形、自動折り返し・自動改ページに対応。.NET Framework 4.8 / .NET 8 / .NET 10。</Description>
+    <PackageTags>pdf;japanese;report;帳票;table;layout</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+    <None Include="..\..\LICENSE" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="ChohyoPdf.Tests" />
+  </ItemGroup>
+
+</Project>
