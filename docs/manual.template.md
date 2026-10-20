@@ -25,7 +25,7 @@ ChohyoPdf は、日本語の帳票や文書を PDF で出力するための C# �
 
 ### 1.1 動作環境とライセンス
 
-- 対応フレームワークは .NET Framework 4.8 以降、.NET 8、.NET 10 です。.NET 9 では .NET 8 向けの DLL が使われます。
+- 対応フレームワークは .NET Framework 4.6.2 以降、.NET Standard 2.0、.NET 8、.NET 10 です。.NET 9 では .NET 8 向けの DLL が、.NET Core 3.1 や .NET 5〜7 など .NET Standard 2.0 に対応した環境では .NET Standard 2.0 向けの DLL が使われます。
 - ライセンスは MIT です。商用のアプリケーションにも組み込めます。
 - 他のパッケージには依存しません。
 

@@ -24,3 +24,7 @@ jobs:
 
       - name: Test
         run: dotnet test tests/ChohyoPdf.Tests -c Release --no-build
+
+      # netstandard2.0 版のライブラリを、net8.0 のテストから使って確認する
+      - name: Test (netstandard2.0)
+        run: dotnet test tests/ChohyoPdf.Tests -c Release -f net8.0 -p:LibraryTargetFramework=netstandard2.0

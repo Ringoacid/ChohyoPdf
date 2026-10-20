@@ -5,7 +5,7 @@
 - **MIT ライセンス**のみで提供します（デュアルライセンスではなく、GPL / AGPL でもありません）。商用利用もできます。
 - PDFsharp / MigraDoc を含め、既存ライブラリのコードは使わずにゼロから実装しています。
 - 外部パッケージへの依存はありません。
-- 対応フレームワークは .NET Framework 4.8 以降、.NET 8、.NET 10 です（.NET 9 では net8.0 版が使われます）。
+- 対応フレームワークは .NET Framework 4.6.2 以降、.NET Standard 2.0、.NET 8、.NET 10 です。.NET 9 では net8.0 版が、.NET Core 3.1 や .NET 5〜7 など .NET Standard 2.0 に対応した環境では netstandard2.0 版が使われます。
 
 サンプルコードと出力結果の画像を載せた [説明書](https://github.com/Ringoacid/ChohyoPdf/blob/main/docs/manual.md) に、機能ごとの使い方をまとめています。
 
@@ -146,12 +146,13 @@ p.AddLink("リンク", "https://example.com/");
 ```
 dotnet build ChohyoPdf.sln
 dotnet test tests/ChohyoPdf.Tests
+dotnet test tests/ChohyoPdf.Tests -f net8.0 -p:LibraryTargetFramework=netstandard2.0   # netstandard2.0 版のテスト
 dotnet run --project samples/ChohyoPdf.Samples -f net8.0 -- 出力先フォルダ
 dotnet pack src/ChohyoPdf -c Release -o artifacts
 python docs/tools/build_docs.py      # 説明書と画像を作り直す
 ```
 
-テストは net8.0 / net10.0 / net48 で実行します。日本語フォントを使うテストのうち、フォントが見つからない環境では検証を省略するものがあります。
+テストは net8.0 / net10.0 / net48 で実行します（net48 では net462 版のライブラリを使います）。netstandard2.0 版は、上のように `LibraryTargetFramework` を指定して net8.0 で実行します。日本語フォントを使うテストのうち、フォントが見つからない環境では検証を省略するものがあります。
 
 ## ライセンス
 
