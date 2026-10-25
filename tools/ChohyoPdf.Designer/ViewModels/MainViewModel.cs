@@ -543,11 +543,31 @@ namespace ChohyoPdf.Designer.ViewModels
         private void AddTabStop(TextElement t)
         {
             var tabs = t.TabStops ?? new ObservableCollection<TextTabStop>();
-            var tab = tabs.Count == 0
-                ? new TextTabStop { Position = Math.Round(Math.Max(0, t.Width - t.Padding * 2), 1), Alignment = TabAlignment.Right, Leader = TabLeader.Dots }
-                : new TextTabStop { Position = tabs.Max(x => x.Position) + 20 };
-            tabs.Add(tab);
+            if (tabs.Count == 0)
+            {
+                // 箇条書きでは、タブ位置を項目の文字の始まりから測るので、記号の列の分（目安）だけ左にする
+                double right = Math.Max(0, t.Width - t.Padding * 2 - MarkerColumnMm(t));
+                tabs.Add(new TextTabStop { Position = Math.Floor(right * 10) / 10, Alignment = TabAlignment.Right, Leader = TabLeader.Dots });
+            }
+            else
+            {
+                tabs.Add(new TextTabStop { Position = tabs.Max(x => x.Position) + 20 });
+            }
             if (t.TabStops == null) t.TabStops = tabs;
+        }
+
+        /// <summary>
+        /// 箇条書きの記号の列の幅（mm）の目安。いちばん外側の項目の記号の幅（半角は文字の大きさの 0.6 倍、全角は 1 倍で数える）と、
+        /// 本文との間隔（文字の大きさの半分）。箇条書きでなければ 0。
+        /// </summary>
+        private static double MarkerColumnMm(TextElement t)
+        {
+            double widest = 0;
+            foreach (var marker in ListMarkers.For(t))
+            {
+                if (marker.Depth == 0) widest = Math.Max(widest, marker.Text.Sum(c => c < 0x100 ? 0.6 : 1.0));
+            }
+            return widest == 0 ? 0 : Unit.ToMm((widest + 0.5) * t.FontSize);
         }
 
         /// <summary>編集しているページを複製して、後ろに足す。</summary>
