@@ -12,6 +12,7 @@ using ModelRect = ChohyoPdf.Designer.Model.Rect;
 namespace ChohyoPdf.Designer.Controls
 {
     using DashStyle = System.Windows.Media.DashStyle;
+    using ScrollViewer = System.Windows.Controls.ScrollViewer;
 
     /// <summary>
     /// 用紙を表示して、部品を選択・移動・変形・作成する画面。
@@ -52,8 +53,11 @@ namespace ChohyoPdf.Designer.Controls
         private Point _startMm, _currentMm;
         private bool _dragStarted;
         private bool _releasingCapture;
-        // 右ボタンで部品を押している（ドラッグすれば動かし、動かさずに離せばメニューを開く）
-        private bool _rightDrag;
+        // 右ボタンを押している（ドラッグすれば表示位置を動かし、動かさずに離せばメニューを開く）。_panning はドラッグを始めた
+        private bool _rightDown, _panning;
+        // 右ボタンを押したときのマウスの位置（スクロールしても動かない、スクロールの領域の上の位置）と、そのときのスクロールの量
+        private Point _panStart;
+        private Vector _panOffset;
         private int _handle = -1;
         private CellRange _anchorCell;
         // Shift / Ctrl ＋クリックで選択済みの部品を押した（ドラッグしないで離したら、選択から外す）
@@ -554,7 +558,7 @@ namespace ChohyoPdf.Designer.Controls
         protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)
         {
             base.OnMouseLeftButtonDown(e);
-            if (_vm == null || _rightDrag) return;
+            if (_vm == null || _rightDown) return;
             Focus();
             PointerDown(e.GetPosition(this), Keyboard.Modifiers, e.ClickCount);
             if (_mode != DragMode.None) CaptureMouse();
@@ -564,14 +568,18 @@ namespace ChohyoPdf.Designer.Controls
         protected override void OnMouseMove(MouseEventArgs e)
         {
             base.OnMouseMove(e);
-            var button = _rightDrag ? e.RightButton : e.LeftButton;
-            PointerMove(e.GetPosition(this), Keyboard.Modifiers, button == MouseButtonState.Pressed);
+            if (_rightDown)
+            {
+                if (Scroller is ScrollViewer scroller) RightPointerMove(e.GetPosition(scroller));
+                return;
+            }
+            PointerMove(e.GetPosition(this), Keyboard.Modifiers, e.LeftButton == MouseButtonState.Pressed);
         }
 
         protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
         {
             base.OnMouseLeftButtonUp(e);
-            if (_rightDrag) return;
+            if (_rightDown) return;
             // 画像を作るときはファイルを選ぶ画面を開くので、先にキャプチャを解放する
             _releasingCapture = true;
             if (IsMouseCaptured) ReleaseMouseCapture();
@@ -793,7 +801,8 @@ namespace ChohyoPdf.Designer.Controls
             }
             _mode = DragMode.None;
             _dragStarted = false;
-            _rightDrag = false;
+            if (_panning) ClearValue(CursorProperty);
+            _rightDown = _panning = false;
             _toggleOnRelease = null;
             InvalidateVisual();
         }
@@ -810,74 +819,83 @@ namespace ChohyoPdf.Designer.Controls
         protected override void OnMouseRightButtonDown(MouseButtonEventArgs e)
         {
             base.OnMouseRightButtonDown(e);
-            if (_vm == null || _mode != DragMode.None) return;
+            if (_vm == null || _mode != DragMode.None || Scroller is not ScrollViewer scroller) return;
             Focus();
-            RightPointerDown(e.GetPosition(this), Keyboard.Modifiers);
-            if (_rightDrag) CaptureMouse();
+            RightPointerDown(e.GetPosition(scroller));
+            CaptureMouse();
             e.Handled = true;
         }
 
         protected override void OnMouseRightButtonUp(MouseButtonEventArgs e)
         {
             base.OnMouseRightButtonUp(e);
-            if (_vm == null) return;
-            if (_rightDrag)
-            {
-                _releasingCapture = true;
-                if (IsMouseCaptured) ReleaseMouseCapture();
-                _releasingCapture = false;
-            }
-            else if (_mode != DragMode.None) return;
-            RightPointerUp(e.GetPosition(this), Keyboard.Modifiers);
+            if (_vm == null || !_rightDown) return;
+            _releasingCapture = true;
+            if (IsMouseCaptured) ReleaseMouseCapture();
+            _releasingCapture = false;
+            RightPointerUp(e.GetPosition(this));
             e.Handled = true;
         }
 
-        /// <summary>
-        /// 右ボタンを押した。押した所のものを選び（<see cref="PrepareContextMenu"/>）、選んでいる部品の上なら、ドラッグで動かせるようにする。
-        /// </summary>
-        internal void RightPointerDown(Point view, ModifierKeys modifiers)
+        /// <summary>デザイン画面をスクロールする領域（なければ null）。</summary>
+        private ScrollViewer? Scroller
         {
-            if (_vm == null) return;
-            EnsureLayout();
-            ActivatePageAt(view);
-            var mm = ToMm(view);
-            // 選んである表の中ではセルを選ぶ（左ボタンと同じく、表は左上のつまみか枠線でだけ動かす）
-            bool inTable = HitElement(mm) is TableElement table && _vm.Selection.Count == 1 && _vm.PrimarySelection == table
-                && table.EditableRowCount > 0 && table.Columns.Count > 0 && !HitMoveGrip(view) && !HitTableEdge(table, view);
-            PrepareContextMenu(view);
-            var hit = HitElement(mm);
-            if (inTable || hit == null || !_vm.Selection.Contains(hit)) return;
-            _startMm = _currentMm = mm;
-            _dragStarted = false;
-            _toggleOnRelease = null;
-            _mode = DragMode.Moving;
-            _rightDrag = true;
-            RememberOriginals(_vm.Selection);
-            _vm.BeginInteraction();
-            _vm.BeginMovePreview(_vm.Selection.ToList(), false);
-        }
-
-        /// <summary>右ボタンを離した。ドラッグしていたら動かし終え、動かしていなければメニューを開く。</summary>
-        internal void RightPointerUp(Point view, ModifierKeys modifiers)
-        {
-            if (_vm == null) return;
-            bool dragged = _rightDrag && _dragStarted;
-            if (_rightDrag)
+            get
             {
-                _rightDrag = false;
-                PointerUp(modifiers);
+                DependencyObject? d = this;
+                while (d != null && d is not ScrollViewer) d = VisualTreeHelper.GetParent(d);
+                return d as ScrollViewer;
             }
-            if (dragged) return;
-            EnsureLayout();
-            var mm = ToMm(view);
-            ContextMenuRequested?.Invoke(mm, HitElement(mm));
         }
 
-        /// <summary>右クリックと同じ処理（選び直してからメニューを開く。動作確認用）。</summary>
+        /// <summary>右ボタンを押した（position はスクロールの領域の上の位置）。ドラッグすれば表示位置を動かす。</summary>
+        internal void RightPointerDown(Point position)
+        {
+            _rightDown = true;
+            _panning = false;
+            _panStart = position;
+            var scroller = Scroller;
+            _panOffset = scroller == null ? default : new Vector(scroller.HorizontalOffset, scroller.VerticalOffset);
+        }
+
+        /// <summary>
+        /// 右ボタンを押したまま動かした。少し動かしたら、マウスに紙が付いてくるように表示位置を動かす
+        /// （ホイールでの上下、Shift ＋ ホイールでの左右のスクロールを、まとめて行う）。
+        /// </summary>
+        internal void RightPointerMove(Point position)
+        {
+            if (!_rightDown || Scroller is not ScrollViewer scroller) return;
+            var moved = position - _panStart;
+            if (!_panning && Math.Abs(moved.X) <= 4 && Math.Abs(moved.Y) <= 4) return;
+            if (!_panning)
+            {
+                _panning = true;
+                Cursor = Cursors.SizeAll;
+            }
+            scroller.ScrollToHorizontalOffset(_panOffset.X - moved.X);
+            scroller.ScrollToVerticalOffset(_panOffset.Y - moved.Y);
+        }
+
+        /// <summary>右ボタンを離した（view はこのコントロール上の位置）。表示位置を動かさなかったときは、メニューを開く。</summary>
+        internal void RightPointerUp(Point view)
+        {
+            bool panned = _panning;
+            _rightDown = _panning = false;
+            if (panned)
+            {
+                ClearValue(CursorProperty);
+                return;
+            }
+            OpenContextMenu(view);
+        }
+
+        /// <summary>右クリックと同じ処理（選び直してからメニューを開く）。</summary>
         internal void OpenContextMenu(Point view)
         {
-            RightPointerDown(view, ModifierKeys.None);
-            RightPointerUp(view, ModifierKeys.None);
+            if (_vm == null) return;
+            PrepareContextMenu(view);
+            var mm = ToMm(view);
+            ContextMenuRequested?.Invoke(mm, HitElement(mm));
         }
 
         /// <summary>
