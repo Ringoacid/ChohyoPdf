@@ -138,6 +138,12 @@ body > main > .content > * { width: 100%; max-width: 880px; margin-left: auto; m
   color: var(--site-accent); background: var(--site-accent-bg);
   border-left-color: var(--site-accent); border-radius: 0 6px 6px 0;
 }
+/* DocFX は開いているページの親の項目にも active を付けるので、強調するのはいちばん深い項目だけにする */
+.toc li.active:has(li.active) > a {
+  color: var(--site-fg); background: transparent;
+  border-left-color: transparent; border-radius: 6px;
+}
+.toc li.active:has(li.active) > a:hover { background: var(--site-hover-bg); }
 .toc li.expander > a { font-weight: 600; }
 .toc li li.active > a { font-weight: 400; }
 .toc .expand-stub::before { margin-top: 0.55em; color: var(--site-muted); }

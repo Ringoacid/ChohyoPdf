@@ -27,5 +27,53 @@ export default {
       }
       navbar.append(ext)
     }
+
+    keepTocScroll()
   },
+}
+
+// 左の目次で項目を選んでも、目次のスクロール位置を変えない。
+// DocFX は新しいページを開くと、選んでいる項目が見える所まで目次をスクロールする（下にあった項目は目次の一番下に来る）。
+// そこで、目次で項目を押したときのスクロール位置を覚えておき、開いたページで目次を作り終えたら元に戻す。
+const tocScrollKey = 'chohyopdf-toc-scroll'
+
+function keepTocScroll() {
+  const toc = document.getElementById('toc')
+  if (!toc) return
+  const scroller = () => toc.querySelector('.overflow-y-auto')
+
+  toc.addEventListener('click', e => {
+    const a = e.target.closest('a[href]')
+    const list = scroller()
+    if (!a || !list) return
+    try {
+      sessionStorage.setItem(tocScrollKey, JSON.stringify({ href: new URL(a.href, location.href).pathname, top: list.scrollTop }))
+    } catch {
+      // 保存領域が使えなければ、DocFX のスクロールのまま
+    }
+  })
+
+  let saved = null
+  try {
+    saved = JSON.parse(sessionStorage.getItem(tocScrollKey) || 'null')
+    sessionStorage.removeItem(tocScrollKey)
+  } catch {
+    saved = null
+  }
+  // 目次から開いたページのときだけ戻す（本文のリンクなどで開いたときは、選んでいる項目が見えるようにする）
+  if (!saved || saved.href !== location.pathname) return
+
+  // 目次は後から作られ、作った直後に DocFX がスクロールするので、そのあとで戻す
+  const restore = () => {
+    const list = scroller()
+    if (!list || !list.querySelector('li.active')) return false
+    requestAnimationFrame(() => { list.scrollTop = saved.top })
+    return true
+  }
+  if (restore()) return
+  const observer = new MutationObserver(() => {
+    if (restore()) observer.disconnect()
+  })
+  observer.observe(toc, { childList: true, subtree: true })
+  setTimeout(() => observer.disconnect(), 5000)
 }
