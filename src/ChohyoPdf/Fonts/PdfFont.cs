@@ -26,6 +26,7 @@ namespace ChohyoPdf
         public static PdfFont FromFile(string path, string faceName, bool ignoreEmbeddingRestrictions = false)
             => FromBytes(File.ReadAllBytes(path), faceName, ignoreEmbeddingRestrictions);
 
+        /// <summary>ストリームからフォントを読み込む。TTC の場合は <paramref name="faceIndex"/> でフォントを選ぶ。</summary>
         public static PdfFont FromStream(Stream stream, int faceIndex = 0, bool ignoreEmbeddingRestrictions = false)
         {
             using (var ms = new MemoryStream())
@@ -35,6 +36,7 @@ namespace ChohyoPdf
             }
         }
 
+        /// <summary>フォントファイルの内容（バイト列）から読み込む。TTC の場合は <paramref name="faceIndex"/> でフォントを選ぶ。</summary>
         public static PdfFont FromBytes(byte[] data, int faceIndex = 0, bool ignoreEmbeddingRestrictions = false)
         {
             if (data == null) throw new ArgumentNullException(nameof(data));
@@ -43,6 +45,7 @@ namespace ChohyoPdf
             return new PdfFont(ttf);
         }
 
+        /// <summary>フォントファイルの内容（バイト列）から読み込み、名前（ファミリー名・フルネーム・PostScript 名のいずれか）で TTC 内のフォントを選ぶ。</summary>
         public static PdfFont FromBytes(byte[] data, string faceName, bool ignoreEmbeddingRestrictions = false)
         {
             if (data == null) throw new ArgumentNullException(nameof(data));
@@ -234,6 +237,7 @@ namespace ChohyoPdf
             return width * fontSize;
         }
 
+        /// <summary>フォントのフルネーム（<see cref="FullName"/>）を返す。</summary>
         public override string ToString() => FullName;
     }
 }

@@ -11,11 +11,17 @@ namespace ChohyoPdf
     /// <summary>文書情報（PDF の Info 辞書）。</summary>
     public sealed class PdfDocumentInfo
     {
+        /// <summary>タイトル。</summary>
         public string? Title { get; set; }
+        /// <summary>作成者。</summary>
         public string? Author { get; set; }
+        /// <summary>サブタイトル（件名）。</summary>
         public string? Subject { get; set; }
+        /// <summary>キーワード。</summary>
         public string? Keywords { get; set; }
+        /// <summary>PDF の元の文書を作ったアプリケーション。</summary>
         public string? Creator { get; set; }
+        /// <summary>PDF を作ったアプリケーション（既定 "ChohyoPdf"）。</summary>
         public string Producer { get; set; } = "ChohyoPdf";
 
         /// <summary>作成日時。null なら保存時の現在時刻。固定すると同じ入力から同じバイト列が得られる。</summary>
@@ -51,6 +57,7 @@ namespace ChohyoPdf
         private readonly List<ImageResource> _imageList = new List<ImageResource>();
         private readonly Dictionary<string, string> _alphaStates = new Dictionary<string, string>();
 
+        /// <summary>文書情報（タイトル・作成者など）。</summary>
         public PdfDocumentInfo Info { get; } = new PdfDocumentInfo();
 
         /// <summary>文書の言語（例: "ja-JP"）。</summary>
@@ -59,7 +66,41 @@ namespace ChohyoPdf
         /// <summary>コンテンツストリームを圧縮するか（既定 true）。</summary>
         public bool CompressContent { get; set; } = true;
 
+        /// <summary>ページの一覧。</summary>
         public IReadOnlyList<PdfPage> Pages => _pages;
+
+        private readonly List<PdfBookmark> _bookmarks = new List<PdfBookmark>();
+        private readonly Dictionary<string, KeyValuePair<PdfPage, double>> _namedDestinations = new Dictionary<string, KeyValuePair<PdfPage, double>>();
+
+        /// <summary>しおり（PDF のアウトライン）の最上位の項目。</summary>
+        public IReadOnlyList<PdfBookmark> Bookmarks => _bookmarks;
+
+        /// <summary>
+        /// PDF を開いたときにしおりの欄を表示するか（既定 false）。しおりが 1 つもないときは何も変わらない。
+        /// </summary>
+        public bool ShowBookmarkPane { get; set; }
+
+        /// <summary>
+        /// 最上位のしおりを追加する。子の項目は <see cref="PdfBookmark.AddChild"/> で追加する。
+        /// しおりの文字列は UTF-16BE の PDF テキスト文字列として保存する。
+        /// </summary>
+        /// <param name="title">しおりに表示する文字列。</param>
+        /// <param name="page">移動先のページ（この文書のページ）。</param>
+        /// <param name="y">移動先の縦位置（ページ上端からの距離、ポイント）。</param>
+        public PdfBookmark AddBookmark(string title, PdfPage page, double y = 0)
+        {
+            var bookmark = new PdfBookmark(this, title, page, y);
+            _bookmarks.Add(bookmark);
+            return bookmark;
+        }
+
+        /// <summary>名前付きの飛び先を登録する。同じ名前が登録済みなら何もしない（最初の登録を優先）。</summary>
+        internal bool TryAddNamedDestination(string name, PdfPage page, double y)
+        {
+            if (_namedDestinations.ContainsKey(name)) return false;
+            _namedDestinations[name] = new KeyValuePair<PdfPage, double>(page, y);
+            return true;
+        }
 
         /// <summary>ページを追加する。</summary>
         public PdfPage AddPage(PageSize size)
@@ -107,6 +148,7 @@ namespace ChohyoPdf
             return name;
         }
 
+        /// <summary>PDF をファイルに保存する。ページがなければ A4 の空白のページを 1 枚追加する。</summary>
         public void Save(string path)
         {
             using (var fs = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None))
@@ -115,6 +157,7 @@ namespace ChohyoPdf
             }
         }
 
+        /// <summary>PDF をバイト列で返す。</summary>
         public byte[] ToArray()
         {
             using (var ms = new MemoryStream())
@@ -124,6 +167,7 @@ namespace ChohyoPdf
             }
         }
 
+        /// <summary>PDF をストリームに書き込む。ページがなければ A4 の空白のページを 1 枚追加する。</summary>
         public void Save(Stream stream)
         {
             if (stream == null) throw new ArgumentNullException(nameof(stream));
@@ -157,9 +201,34 @@ namespace ChohyoPdf
                 img.MaskId = img.Image.AlphaData != null ? output.AllocateId() : 0;
             }
 
+            // しおり（1 つもなければオブジェクトを増やさない）
+            var outlineItems = new List<PdfBookmark>();
+            var outlineIds = new Dictionary<PdfBookmark, int>();
+            int outlinesId = 0;
+            if (_bookmarks.Count > 0)
+            {
+                outlinesId = output.AllocateId();
+                CollectBookmarks(_bookmarks, outlineItems);
+                foreach (var item in outlineItems) outlineIds[item] = output.AllocateId();
+            }
+
+            var pageIndex = new Dictionary<PdfPage, int>();
+            for (int i = 0; i < _pages.Count; i++) pageIndex[_pages[i]] = i;
+            string Destination(PdfPage target, double y)
+            {
+                if (!pageIndex.TryGetValue(target, out int index))
+                    throw new InvalidOperationException("リンクまたはしおりの移動先のページが、この文書にありません。");
+                return "[" + pageIds[index] + " 0 R /XYZ null " + PdfFormat.Num(target.Height - y) + " null]";
+            }
+
             output.WriteHeader();
 
             var catalog = new StringBuilder("<< /Type /Catalog /Pages " + pagesId + " 0 R");
+            if (outlinesId != 0)
+            {
+                catalog.Append(" /Outlines ").Append(outlinesId).Append(" 0 R");
+                if (ShowBookmarkPane) catalog.Append(" /PageMode /UseOutlines");
+            }
             if (!string.IsNullOrEmpty(Language)) catalog.Append(" /Lang ").Append(PdfFormat.TextString(Language!));
             if (!string.IsNullOrEmpty(Info.Title)) catalog.Append(" /ViewerPreferences << /DisplayDocTitle true >>");
             catalog.Append(" >>");
@@ -197,11 +266,31 @@ namespace ChohyoPdf
                     var link = page.Links[a];
                     double x0 = link.Rect.X, x1 = link.Rect.Right;
                     double y0 = page.Height - link.Rect.Bottom, y1 = page.Height - link.Rect.Y;
-                    output.WriteObject(annotIds[i][a],
-                        "<< /Type /Annot /Subtype /Link /Rect [" + PdfFormat.Num(x0) + " " + PdfFormat.Num(y0) + " " + PdfFormat.Num(x1) + " " + PdfFormat.Num(y1) + "]"
-                        + " /Border [0 0 0] /A << /S /URI /URI " + PdfFormat.TextString(link.Uri) + " >> >>");
+                    string rect = "<< /Type /Annot /Subtype /Link /Rect [" + PdfFormat.Num(x0) + " " + PdfFormat.Num(y0) + " " + PdfFormat.Num(x1) + " " + PdfFormat.Num(y1) + "]";
+                    if (!link.IsInternal)
+                    {
+                        output.WriteObject(annotIds[i][a], rect + " /Border [0 0 0] /A << /S /URI /URI " + PdfFormat.TextString(link.Uri) + " >> >>");
+                        continue;
+                    }
+                    PdfPage destPage;
+                    double destY;
+                    if (link.DestinationName != null)
+                    {
+                        if (!_namedDestinations.TryGetValue(link.DestinationName, out var named))
+                            throw new InvalidOperationException("リンク先のアンカー '" + link.DestinationName + "' がありません。");
+                        destPage = named.Key;
+                        destY = named.Value;
+                    }
+                    else
+                    {
+                        destPage = link.DestinationPage!;
+                        destY = link.DestinationY;
+                    }
+                    output.WriteObject(annotIds[i][a], rect + " /Border [0 0 0] /Dest " + Destination(destPage, destY) + " >>");
                 }
             }
+
+            if (outlinesId != 0) WriteOutlines(output, outlinesId, _bookmarks, outlineIds, Destination);
 
             foreach (var f in _fontList) WriteFont(output, f, fontIds[f]);
             foreach (var img in _imageList) WriteImage(output, img);
@@ -232,6 +321,54 @@ namespace ChohyoPdf
                 Array.Copy(hash, fileId, 16);
             }
             output.WriteXrefAndTrailer(catalogId, infoId, fileId);
+        }
+
+        private static void CollectBookmarks(IReadOnlyList<PdfBookmark> items, List<PdfBookmark> result)
+        {
+            foreach (var item in items)
+            {
+                result.Add(item);
+                CollectBookmarks(item.Children, result);
+            }
+        }
+
+        /// <summary>項目を開いたときに表示される子孫の数。</summary>
+        private static int VisibleDescendants(PdfBookmark item)
+        {
+            int count = 0;
+            foreach (var child in item.Children) count += 1 + (child.IsOpen ? VisibleDescendants(child) : 0);
+            return count;
+        }
+
+        private static void WriteOutlines(PdfOutput output, int outlinesId, IReadOnlyList<PdfBookmark> top,
+            Dictionary<PdfBookmark, int> ids, Func<PdfPage, double, string> destination)
+        {
+            int visible = 0;
+            foreach (var item in top) visible += 1 + (item.IsOpen ? VisibleDescendants(item) : 0);
+            output.WriteObject(outlinesId, "<< /Type /Outlines /First " + ids[top[0]] + " 0 R /Last " + ids[top[top.Count - 1]] + " 0 R /Count " + visible + " >>");
+            WriteBookmarkLevel(output, outlinesId, top, ids, destination);
+        }
+
+        private static void WriteBookmarkLevel(PdfOutput output, int parentId, IReadOnlyList<PdfBookmark> items,
+            Dictionary<PdfBookmark, int> ids, Func<PdfPage, double, string> destination)
+        {
+            for (int i = 0; i < items.Count; i++)
+            {
+                var item = items[i];
+                var dict = new StringBuilder("<< /Title " + PdfFormat.TextString(item.Title) + " /Parent " + parentId + " 0 R");
+                if (i > 0) dict.Append(" /Prev ").Append(ids[items[i - 1]]).Append(" 0 R");
+                if (i + 1 < items.Count) dict.Append(" /Next ").Append(ids[items[i + 1]]).Append(" 0 R");
+                if (item.Children.Count > 0)
+                {
+                    int count = VisibleDescendants(item);
+                    dict.Append(" /First ").Append(ids[item.Children[0]]).Append(" 0 R");
+                    dict.Append(" /Last ").Append(ids[item.Children[item.Children.Count - 1]]).Append(" 0 R");
+                    dict.Append(" /Count ").Append(item.IsOpen ? count : -count);
+                }
+                dict.Append(" /Dest ").Append(destination(item.Page, item.Y)).Append(" >>");
+                output.WriteObject(ids[item], dict.ToString());
+                WriteBookmarkLevel(output, ids[item], item.Children, ids, destination);
+            }
         }
 
         private string BuildResources(PdfPage page)
@@ -349,7 +486,7 @@ namespace ChohyoPdf
             var img = res.Image;
             string colorSpace = img.Components == 1 ? "/DeviceGray" : img.Components == 4 ? "/DeviceCMYK" : "/DeviceRGB";
             var dict = new StringBuilder("/Type /XObject /Subtype /Image");
-            dict.Append(" /Width ").Append(img.PixelWidth).Append(" /Height ").Append(img.PixelHeight);
+            dict.Append(" /Width ").Append(img.StoredWidth).Append(" /Height ").Append(img.StoredHeight);
             dict.Append(" /ColorSpace ").Append(colorSpace).Append(" /BitsPerComponent 8");
             dict.Append(img.Kind == PdfImage.ImageKind.Jpeg ? " /Filter /DCTDecode" : " /Filter /FlateDecode");
             if (img.InvertCmyk) dict.Append(" /Decode [1 0 1 0 1 0 1 0]");
@@ -358,7 +495,7 @@ namespace ChohyoPdf
             if (res.MaskId != 0)
             {
                 output.WriteStreamObject(res.MaskId,
-                    "/Type /XObject /Subtype /Image /Width " + img.PixelWidth + " /Height " + img.PixelHeight
+                    "/Type /XObject /Subtype /Image /Width " + img.StoredWidth + " /Height " + img.StoredHeight
                     + " /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode", img.AlphaData!);
             }
         }

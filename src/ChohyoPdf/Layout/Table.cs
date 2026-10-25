@@ -7,14 +7,17 @@ namespace ChohyoPdf
     /// <summary>罫線の指定。</summary>
     public sealed class BorderLine
     {
+        /// <summary>色と線幅（ポイント）を指定して作る。</summary>
         public BorderLine(PdfColor color, double width = 0.5)
         {
             Color = color;
             Width = width;
         }
 
+        /// <summary>線の色。</summary>
         public PdfColor Color { get; set; }
 
+        /// <summary>線幅（ポイント）。</summary>
         public double Width { get; set; }
 
         /// <summary>破線パターン。null なら実線。</summary>
@@ -40,9 +43,13 @@ namespace ChohyoPdf
     /// <summary>セルの上下左右の罫線。null の辺は表の既定値を使う。</summary>
     public sealed class CellBorders
     {
+        /// <summary>上の罫線。</summary>
         public BorderLine? Top { get; set; }
+        /// <summary>下の罫線。</summary>
         public BorderLine? Bottom { get; set; }
+        /// <summary>左の罫線。</summary>
         public BorderLine? Left { get; set; }
+        /// <summary>右の罫線。</summary>
         public BorderLine? Right { get; set; }
 
         /// <summary>全辺を同じ罫線にする。</summary>
@@ -53,6 +60,19 @@ namespace ChohyoPdf
         }
     }
 
+    /// <summary>列の幅の決め方。</summary>
+    public enum ColumnWidthMode
+    {
+        /// <summary>固定幅（<see cref="Column.Width"/>）。</summary>
+        Fixed,
+
+        /// <summary>比率（<see cref="Column.RelativeWidth"/>）で、固定幅と内容に合わせる列の残りの幅を分ける。</summary>
+        Relative,
+
+        /// <summary>セルの内容に合わせる（<see cref="Column.AutoFit"/>）。</summary>
+        Auto,
+    }
+
     /// <summary>表の列。</summary>
     public sealed class Column
     {
@@ -60,11 +80,24 @@ namespace ChohyoPdf
         {
         }
 
-        /// <summary>固定幅（ポイント）。null なら <see cref="RelativeWidth"/> の比率で残りの幅を分ける。</summary>
+        /// <summary>固定幅（ポイント）。null なら <see cref="RelativeWidth"/> の比率で残りの幅を分ける。<see cref="AutoFit"/> が true の間は使われない。</summary>
         public double? Width { get; set; }
 
-        /// <summary>相対幅（固定幅でない列で残りの幅を分け合う比率）。</summary>
+        /// <summary>相対幅（固定幅でない列で残りの幅を分け合う比率）。<see cref="AutoFit"/> が true の間は使われない。</summary>
         public double RelativeWidth { get; set; } = 1;
+
+        /// <summary>
+        /// true なら、列の幅をセルの内容に合わせる（<see cref="Width"/> と <see cref="RelativeWidth"/> は使わない）。
+        /// 各列のセルの内容の最小幅（折り返せない最長の単位）と最大幅（折り返さないときの幅）を調べ、HTML の自動表レイアウトに近い方法で配分する。
+        /// 既定は false。<see cref="Table.AddAutoColumn"/> で追加した列は true になる。
+        /// </summary>
+        public bool AutoFit { get; set; }
+
+        /// <summary>
+        /// 幅の決め方（<see cref="AutoFit"/> が true なら Auto、そうでなくて <see cref="Width"/> があれば Fixed、なければ Relative）。
+        /// 表全体の <see cref="Table.AutoFitColumns"/> は反映しない。
+        /// </summary>
+        public ColumnWidthMode WidthMode => AutoFit ? ColumnWidthMode.Auto : Width.HasValue ? ColumnWidthMode.Fixed : ColumnWidthMode.Relative;
 
         /// <summary>この列のセルの既定の揃え。</summary>
         public TextAlignment? Alignment { get; set; }
@@ -92,6 +125,7 @@ namespace ChohyoPdf
             for (int i = 0; i < columns; i++) Cells.Add(new Cell(this));
         }
 
+        /// <summary>この行がある表。</summary>
         public Table Table { get; }
 
         /// <summary>セル（列の数だけある）。</summary>
@@ -103,6 +137,7 @@ namespace ChohyoPdf
         /// <summary>行の高さ（<see cref="HeightRule"/> に従う）。</summary>
         public double? Height { get; set; }
 
+        /// <summary><see cref="Height"/> の扱い（既定 <see cref="RowHeightRule.AtLeast"/>）。</summary>
         public RowHeightRule HeightRule { get; set; } = RowHeightRule.AtLeast;
 
         /// <summary>行の背景色。</summary>
@@ -132,6 +167,7 @@ namespace ChohyoPdf
             Row = row;
         }
 
+        /// <summary>このセルがある行。</summary>
         public Row Row { get; }
 
         /// <summary>右方向に結合する列数（1 = 結合しない）。</summary>
@@ -175,12 +211,14 @@ namespace ChohyoPdf
             return this;
         }
 
+        /// <summary>背景色を指定する。</summary>
         public Cell SetBackground(PdfColor color)
         {
             Background = color;
             return this;
         }
 
+        /// <summary>水平方向の揃えと、垂直方向の揃えを指定する。</summary>
         public Cell SetAlignment(TextAlignment alignment, VerticalAlignment? vertical = null)
         {
             Alignment = alignment;
@@ -190,12 +228,14 @@ namespace ChohyoPdf
     }
 
     /// <summary>
-    /// 表。列幅（固定・比率）、セル結合、罫線、背景色、見出し行の繰り返し、ページをまたぐ行の分割に対応する。
+    /// 表。列幅（固定・比率・内容に合わせる）、セル結合、罫線、背景色、見出し行の繰り返し、ページをまたぐ行の分割に対応する。
     /// </summary>
     public sealed class Table : BoxBlock
     {
+        /// <summary>列。</summary>
         public List<Column> Columns { get; } = new List<Column>();
 
+        /// <summary>行（見出し行を含む）。</summary>
         public List<Row> Rows { get; } = new List<Row>();
 
         /// <summary>見出し行の数。改ページ後の各ページの先頭に繰り返し表示される。</summary>
@@ -228,6 +268,12 @@ namespace ChohyoPdf
         /// <summary>表の水平位置（列幅の合計が利用できる幅より狭い場合）。</summary>
         public HorizontalAlignment Alignment { get; set; } = HorizontalAlignment.Left;
 
+        /// <summary>
+        /// true なら、固定幅（<see cref="Column.Width"/>）を指定していない列をすべて内容に合わせる（比率の列も内容に合わせる）。
+        /// 固定幅の列はそのまま。既定は false。<see cref="Column.AutoFit"/> を個別に指定した列と同じ扱い。
+        /// </summary>
+        public bool AutoFitColumns { get; set; }
+
         /// <summary>固定幅の列を追加する。</summary>
         public Column AddColumn(double width)
         {
@@ -242,6 +288,22 @@ namespace ChohyoPdf
             var c = new Column { RelativeWidth = relativeWidth };
             AddColumnInternal(c);
             return c;
+        }
+
+        /// <summary>セルの内容に合わせて幅を決める列を追加する（<see cref="Column.AutoFit"/> が true の列）。</summary>
+        public Column AddAutoColumn()
+        {
+            var c = new Column { AutoFit = true };
+            AddColumnInternal(c);
+            return c;
+        }
+
+        /// <summary>セルの内容に合わせて幅を決める列を、<paramref name="count"/> 個まとめて追加する。</summary>
+        public Table AddAutoColumns(int count)
+        {
+            if (count < 0) throw new ArgumentOutOfRangeException(nameof(count));
+            for (int i = 0; i < count; i++) AddAutoColumn();
+            return this;
         }
 
         /// <summary>比率で幅を決める列をまとめて追加する（例: AddColumns(1, 2, 1)）。</summary>

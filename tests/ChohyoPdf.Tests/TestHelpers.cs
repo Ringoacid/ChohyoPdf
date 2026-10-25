@@ -12,25 +12,32 @@ namespace ChohyoPdf.Tests
         private static PdfFont? _gothic;
         private static bool _searched;
 
+        private static readonly object _lock = new object();
+
         /// <summary>日本語フォント（見つからない環境では null）。</summary>
         public static PdfFont? Japanese
         {
             get
             {
-                if (_searched) return _gothic;
-                _searched = true;
-                string windir = Environment.GetEnvironmentVariable("WINDIR") ?? @"C:\Windows";
-                foreach (string name in new[] { "YuGothR.ttc", "msgothic.ttc", "meiryo.ttc" })
+                // テストは並列に実行されるので、検索が終わるまで他のスレッドを待たせる
+                lock (_lock)
                 {
-                    string path = Path.Combine(windir, "Fonts", name);
-                    if (File.Exists(path))
+                    if (_searched) return _gothic;
+                    string windir = Environment.GetEnvironmentVariable("WINDIR") ?? @"C:\Windows";
+                    foreach (string name in new[] { "YuGothR.ttc", "msgothic.ttc", "meiryo.ttc" })
                     {
-                        _gothic = PdfFont.FromFile(path, 0);
-                        return _gothic;
+                        string path = Path.Combine(windir, "Fonts", name);
+                        if (File.Exists(path))
+                        {
+                            _gothic = PdfFont.FromFile(path, 0);
+                            _searched = true;
+                            return _gothic;
+                        }
                     }
+                    PdfFont.TryFromSystem(out _gothic, "Noto Sans JP", "IPAexGothic", "Noto Sans CJK JP");
+                    _searched = true;
+                    return _gothic;
                 }
-                PdfFont.TryFromSystem(out _gothic, "Noto Sans JP", "IPAexGothic", "Noto Sans CJK JP");
-                return _gothic;
             }
         }
 

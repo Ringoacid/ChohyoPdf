@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using ChohyoPdf.Images;
 using ChohyoPdf.Internal;
+using ChohyoPdf.Layout;
 using ChohyoPdf.Text;
 
 namespace ChohyoPdf
@@ -9,10 +11,13 @@ namespace ChohyoPdf
     /// <summary>テキストボックス描画のオプション。</summary>
     public sealed class TextBoxOptions
     {
+        /// <summary>水平方向の揃え。</summary>
         public TextAlignment Alignment { get; set; } = TextAlignment.Left;
 
+        /// <summary>矩形の中での垂直方向の揃え。</summary>
         public VerticalAlignment VerticalAlignment { get; set; } = VerticalAlignment.Top;
 
+        /// <summary><see cref="LineSpacing"/> の単位。</summary>
         public LineSpacingRule LineSpacingRule { get; set; } = LineSpacingRule.Multiple;
 
         /// <summary>行送り（<see cref="LineSpacingRule"/> が Multiple なら文字サイズの倍数、それ以外はポイント）。</summary>
@@ -29,6 +34,16 @@ namespace ChohyoPdf
 
         /// <summary>はみ出した行も描画するか（false なら矩形に収まる行だけを描画する）。</summary>
         public bool DrawOverflow { get; set; }
+
+        /// <summary>
+        /// タブ位置（矩形の左端からの位置）。<see cref="ParagraphFormat.TabStops"/> と同じ規則で、文字列中のタブ文字（\t）が次のタブ位置まで進む。
+        /// <see cref="TabStops"/> と <see cref="DefaultTabStop"/> のどちらも未指定なら、タブ文字は空白 4 文字分の幅になる。
+        /// 縮小して全体を表示するときも、タブ位置は縮小されない。
+        /// </summary>
+        public IList<TabStop>? TabStops { get; set; }
+
+        /// <summary>既定のタブ間隔（ポイント）。<see cref="ParagraphFormat.DefaultTabStop"/> と同じ。</summary>
+        public double? DefaultTabStop { get; set; }
     }
 
     /// <summary>テキストボックス描画の結果。</summary>
@@ -47,6 +62,25 @@ namespace ChohyoPdf
         public bool Overflowed { get; internal set; }
 
         /// <summary>実際に使った文字サイズ（縮小した場合は縮小後の値）。</summary>
+        public double FontSize { get; internal set; }
+    }
+
+    /// <summary><see cref="PdfGraphics.DrawBlocks(IEnumerable{Block}, PdfRect, TextStyle, TextBoxOptions)"/> の結果。</summary>
+    public sealed class BlockBoxResult
+    {
+        /// <summary>描画した内容の高さ（縮小した場合は縮小後の高さ）。</summary>
+        public double Height { get; internal set; }
+
+        /// <summary>全体の高さ（描画しなかった部分も含む。縮小した場合は縮小後の高さ）。</summary>
+        public double TotalHeight { get; internal set; }
+
+        /// <summary>収まりきらなかったか（描画しなかった部分がある、または折り返さない行が矩形の幅を超えた）。</summary>
+        public bool Overflowed { get; internal set; }
+
+        /// <summary>縮小した倍率（縮小しなければ 1）。</summary>
+        public double Scale { get; internal set; }
+
+        /// <summary>既定の文字スタイルの文字サイズに <see cref="Scale"/> を掛けたもの。</summary>
         public double FontSize { get; internal set; }
     }
 
@@ -92,10 +126,13 @@ namespace ChohyoPdf
             _page = page;
         }
 
+        /// <summary>描画先のページ。</summary>
         public PdfPage Page => _page;
 
+        /// <summary>ページの幅（ポイント）。</summary>
         public double PageWidth => _page.Width;
 
+        /// <summary>ページの高さ（ポイント）。</summary>
         public double PageHeight => _page.Height;
 
         internal string GetContent()
@@ -279,14 +316,26 @@ namespace ChohyoPdf
 
         // ---- 画像 ----
 
-        /// <summary>画像を指定の矩形に描画する。</summary>
+        /// <summary>
+        /// 画像を指定の矩形に描画する。EXIF の向きを適用した画像（<see cref="PdfImage.OrientationApplied"/>）は、
+        /// 向きを直した後の画像を矩形（<paramref name="width"/> × <paramref name="height"/> は向きを直した後の大きさ）いっぱいに描く。
+        /// </summary>
         public void DrawImage(PdfImage image, double x, double y, double width, double height)
         {
             if (image == null) throw new ArgumentNullException(nameof(image));
             var res = _page.Document.GetImage(image);
             if (!_page.UsedImages.Contains(res)) _page.UsedImages.Add(res);
             Op("q");
-            Op(N(width) + " 0 0 " + N(-height) + " " + N(x) + " " + N(y + height) + " cm");
+            if (image.Orientation == 1)
+            {
+                Op(N(width) + " 0 0 " + N(-height) + " " + N(x) + " " + N(y + height) + " cm");
+            }
+            else
+            {
+                // 画素データはそのまま、変換行列で回転・反転して向きを直す
+                var m = ImageOrientation.GetMatrix(image.Orientation, x, y, width, height);
+                Op(N(m[0]) + " " + N(m[1]) + " " + N(m[2]) + " " + N(m[3]) + " " + N(m[4]) + " " + N(m[5]) + " cm");
+            }
             Op("/" + res.Name + " Do");
             Op("Q");
         }
@@ -331,13 +380,14 @@ namespace ChohyoPdf
             options = options ?? new TextBoxOptions();
             var baseStyle = ResolvedStyle.From(style);
             double size = baseStyle.Size;
-            TextBlock block = BuildBox(text, baseStyle, rect.Width, options);
+            var tabs = TabLayout.Create(options.TabStops, options.DefaultTabStop);
+            TextBlock block = BuildBox(text, baseStyle, rect.Width, options, tabs);
             if (options.ShrinkToFit)
             {
                 while (size > options.MinFontSize && !Fits(block, rect, options))
                 {
                     size = Math.Max(options.MinFontSize, size - Math.Max(0.25, size * 0.05));
-                    block = BuildBox(text, baseStyle.WithSize(size), rect.Width, options);
+                    block = BuildBox(text, baseStyle.WithSize(size), rect.Width, options, tabs);
                 }
             }
 
@@ -365,10 +415,10 @@ namespace ChohyoPdf
             };
         }
 
-        private static TextBlock BuildBox(string text, ResolvedStyle style, double width, TextBoxOptions options)
+        private static TextBlock BuildBox(string text, ResolvedStyle style, double width, TextBoxOptions options, TabLayout? tabs)
         {
             var block = TextBlock.Build(text, style);
-            block.Layout(options.Wrap ? width : double.MaxValue / 4, 0, options.LineSpacingRule, options.LineSpacing);
+            block.Layout(options.Wrap ? width : double.MaxValue / 4, 0, options.LineSpacingRule, options.LineSpacing, tabs);
             return block;
         }
 
@@ -376,6 +426,115 @@ namespace ChohyoPdf
         {
             if (block.TotalHeight > rect.Height + 1e-6) return false;
             return block.MaxLineWidth <= rect.Width + 1e-6;
+        }
+
+        /// <summary>
+        /// 矩形内に段落・箇条書きなどのブロック（自動レイアウトの <see cref="Paragraph"/>・<see cref="ListBlock"/>・<see cref="Table"/> など）を上から順に並べて描画する。
+        /// 文字の一部だけを上付き・下付きにしたりルビを付けたりした段落や、箇条書きを、座標を指定して描くときに使う。
+        /// <para>
+        /// <paramref name="style"/> は既定の文字スタイル（<see cref="Document.DefaultTextStyle"/> にあたる）。<paramref name="options"/> の
+        /// <see cref="TextBoxOptions.Alignment"/>・<see cref="TextBoxOptions.LineSpacingRule"/>・<see cref="TextBoxOptions.LineSpacing"/>・
+        /// <see cref="TextBoxOptions.TabStops"/>・<see cref="TextBoxOptions.DefaultTabStop"/> は既定の段落書式になり、段落やリストの書式で上書きできる。
+        /// 垂直方向の揃え・縮小・折り返し・はみ出しの扱いは <see cref="DrawTextBox"/> と同じ。縮小は、内容全体を同じ倍率で縮めて行う
+        /// （<see cref="TextBoxOptions.MinFontSize"/> は既定の文字スタイルの文字サイズに対する下限）。
+        /// </para>
+        /// <para>
+        /// 改ページ・段区切りは無視する。脚注・目次・ページ参照・名前付きスタイルは使えない（<see cref="InvalidOperationException"/> になる）。
+        /// アンカー（<see cref="Paragraph.SetAnchor"/> など）は <see cref="PdfDocument"/> の名前付きの飛び先になり、同じ <see cref="PdfDocument"/> に描いた
+        /// 文書内リンク（<see cref="Paragraph.AddInternalLink"/>）から飛べる。ページ番号のフィールドは、このページが <see cref="PdfDocument"/> の何ページ目かを表示する
+        /// （総ページ数は、描画した時点のページ数）。
+        /// </para>
+        /// </summary>
+        public BlockBoxResult DrawBlocks(IEnumerable<Block> blocks, PdfRect rect, TextStyle style, TextBoxOptions? options = null)
+        {
+            if (blocks == null) throw new ArgumentNullException(nameof(blocks));
+            if (style == null) throw new ArgumentNullException(nameof(style));
+            options = options ?? new TextBoxOptions();
+            var doc = new Document { DefaultTextStyle = style };
+            doc.DefaultParagraphFormat = doc.DefaultParagraphFormat.Merge(new ParagraphFormat
+            {
+                Alignment = options.Alignment,
+                LineSpacingRule = options.LineSpacingRule,
+                LineSpacing = options.LineSpacing,
+                TabStops = options.TabStops,
+                DefaultTabStop = options.DefaultTabStop,
+                // テキストボックスと同じく、入る行はすべて描く
+                WidowControl = false,
+            });
+            var scope = StyleScope.Root(doc, null).WithoutFootnotes();
+            if (!options.Wrap) scope = scope.WithoutWrap();
+            double size = ResolvedStyle.From(scope.Text).Size;
+            var node = new ContainerNode(blocks, scope, allowPageBreaks: false);
+
+            int pageIndex = 0;
+            var pages = _page.Document.Pages;
+            for (int i = 0; i < pages.Count; i++)
+            {
+                if (pages[i] == _page) pageIndex = i;
+            }
+            var ctx = new LayoutContext();
+            ctx.Page.Page = _page;
+            ctx.Page.PageSize = new PageSize(_page.Width, _page.Height);
+            ctx.Page.ContentArea = rect;
+            ctx.Page.ColumnAreas = new[] { rect };
+            ctx.Page.PageNumber = ctx.Page.DisplayPageNumber = ctx.Page.SectionPageNumber = pageIndex + 1;
+            ctx.Page.PageNumberText = PageNumberFormatter.Format(pageIndex + 1, PageNumberFormat.Arabic);
+            ctx.Page.PageCount = ctx.Page.SectionPageCount = pages.Count;
+            // アンカーは PdfDocument の名前付きの飛び先にする（同じ PdfDocument の文書内リンクから飛べる）
+            ctx.Collector = new PassCollector(_page.Document);
+            ctx.Collector.BeginPage(pageIndex, _page, pageIndex + 1, PageNumberFormat.Arabic, ctx.Page.PageNumberText);
+
+            // 全体の高さと、折り返さないときの幅（倍率 scale で縮めたときの値）
+            double MeasureHeight(double scale) => node.Layout(ctx, rect.Width / scale, double.PositiveInfinity, null, true).Height * scale;
+            double MeasureWidth(double scale)
+            {
+                if (options!.Wrap) return 0;
+                node.MeasureWidths(ctx, out _, out double max);
+                return max * scale;
+            }
+            bool Fits(double scale) => MeasureHeight(scale) <= rect.Height + 1e-6 && MeasureWidth(scale) <= rect.Width + 1e-6;
+
+            double s = 1;
+            if (options.ShrinkToFit)
+            {
+                while (size * s > options.MinFontSize && !Fits(s))
+                {
+                    double current = size * s;
+                    s = Math.Max(options.MinFontSize, current - Math.Max(0.25, current * 0.05)) / size;
+                }
+            }
+
+            double total = MeasureHeight(s);
+            Slice slice = options.DrawOverflow
+                ? node.Layout(ctx, rect.Width / s, double.PositiveInfinity, null, true)
+                : node.Layout(ctx, rect.Width / s, rect.Height / s + 1e-6, null, false);
+            double height = slice.Empty ? 0 : slice.Height * s;
+            double top = rect.Y;
+            if (options.VerticalAlignment == VerticalAlignment.Middle) top += (rect.Height - height) / 2;
+            else if (options.VerticalAlignment == VerticalAlignment.Bottom) top += rect.Height - height;
+            if (!slice.Empty && slice.Draw != null)
+            {
+                SaveState();
+                Translate(rect.X, top);
+                if (s != 1) Scale(s, s);
+                slice.Draw(this, 0, 0);
+                RestoreState();
+            }
+            return new BlockBoxResult
+            {
+                Height = height,
+                TotalHeight = total,
+                Overflowed = slice.Empty || slice.Next != null || MeasureWidth(s) > rect.Width + 1e-6,
+                Scale = s,
+                FontSize = size * s,
+            };
+        }
+
+        /// <summary>矩形内にブロックを 1 つ描画する（<see cref="DrawBlocks(IEnumerable{Block}, PdfRect, TextStyle, TextBoxOptions)"/> と同じ）。</summary>
+        public BlockBoxResult DrawBlocks(Block block, PdfRect rect, TextStyle style, TextBoxOptions? options = null)
+        {
+            if (block == null) throw new ArgumentNullException(nameof(block));
+            return DrawBlocks(new[] { block }, rect, style, options);
         }
 
         /// <summary>折り返しなしでテキストの幅を測る。</summary>
@@ -425,10 +584,52 @@ namespace ChohyoPdf
             Op("Q");
         }
 
+        /// <summary>
+        /// 以降の文字を、テキスト抽出・検索の対象から外す印（ActualText が空のマーク付きコンテンツ）で囲み始める（ルビに使う）。
+        /// <see cref="EndMarkedContent"/> で閉じる。
+        /// </summary>
+        internal void BeginIgnoredText() => Op("/Span <</ActualText <FEFF>>> BDC");
+
+        /// <summary>直前の <see cref="BeginIgnoredText"/> を閉じる。</summary>
+        internal void EndMarkedContent() => Op("EMC");
+
         /// <summary>現在の座標系での矩形にリンクを設定する。</summary>
         public void AddLink(PdfRect rect, string uri)
         {
             if (uri == null) throw new ArgumentNullException(nameof(uri));
+            _page.AddLink(TransformRect(rect), uri);
+        }
+
+        /// <summary>
+        /// 現在の座標系での矩形に、文書内の別のページ（または同じページ）へ移動するリンクを設定する。
+        /// </summary>
+        /// <param name="rect">リンクの領域（現在の座標系）。</param>
+        /// <param name="destination">飛び先のページ（同じ <see cref="PdfDocument"/> のページ）。</param>
+        /// <param name="y">飛び先の縦位置（飛び先のページの上端からの距離、ポイント）。この位置がウィンドウの上端に来る。</param>
+        public void AddLink(PdfRect rect, PdfPage destination, double y = 0)
+        {
+            _page.AddLink(TransformRect(rect), destination, y);
+        }
+
+        /// <summary>名前付きの飛び先へのリンク（文書の自動レイアウトが使う）。</summary>
+        internal void AddNamedLink(PdfRect rect, string name)
+        {
+            _page.AddNamedLink(TransformRect(rect), name);
+        }
+
+        /// <summary>現在の座標系の点を、ページ座標（左上原点、y 下向き）に変換する。</summary>
+        internal void ToPagePoint(double x, double y, out double pageX, out double pageY)
+        {
+            _ctm.Transform(x, y, out pageX, out pageY);
+        }
+
+        /// <summary>
+        /// ページ番号を確定するための予備の描画中か。true の間、利用者が指定した描画処理（図形ブロックの描画など）は呼ばない。
+        /// </summary>
+        internal bool IsMeasuring { get; set; }
+
+        private PdfRect TransformRect(PdfRect rect)
+        {
             double minX = double.MaxValue, minY = double.MaxValue, maxX = double.MinValue, maxY = double.MinValue;
             foreach (var p in new[] { new[] { rect.X, rect.Y }, new[] { rect.Right, rect.Y }, new[] { rect.X, rect.Bottom }, new[] { rect.Right, rect.Bottom } })
             {
@@ -438,7 +639,7 @@ namespace ChohyoPdf
                 maxX = Math.Max(maxX, tx);
                 maxY = Math.Max(maxY, ty);
             }
-            _page.AddLink(new PdfRect(minX, minY, maxX - minX, maxY - minY), uri);
+            return new PdfRect(minX, minY, maxX - minX, maxY - minY);
         }
     }
 }

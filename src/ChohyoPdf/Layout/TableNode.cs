@@ -36,11 +36,33 @@ namespace ChohyoPdf.Layout
         private readonly List<CellInfo>[] _rowCells;
         private readonly int _headerRows;
 
+        /// <summary>内容に合わせる列か（<see cref="Column.AutoFit"/>、または <see cref="Table.AutoFitColumns"/> で幅を指定していない列）。</summary>
+        private readonly bool[] _auto;
+        private readonly bool _hasAuto;
+
+        /// <summary>内容の幅の計測結果（初めて必要になったときに 1 度だけ計測する。このノードを作った文書のレイアウトの間は変わらない）。</summary>
+        private readonly object _sync = new object();
+        private IntrinsicWidths? _intrinsic;
+
+        /// <summary>列ごとの内容の幅。固定幅の列は最小も最大もその幅。</summary>
+        private sealed class IntrinsicWidths
+        {
+            public double[] Min = Array.Empty<double>();
+            public double[] Max = Array.Empty<double>();
+        }
+
         public TableNode(Table t, StyleScope scope)
         {
             _t = t;
             _rows = t.Rows.Count;
             _cols = t.Columns.Count;
+            _auto = new bool[_cols];
+            for (int i = 0; i < _cols; i++)
+            {
+                var column = t.Columns[i];
+                _auto[i] = column.AutoFit || (t.AutoFitColumns && !column.Width.HasValue);
+                if (_auto[i]) _hasAuto = true;
+            }
             _headerRows = Math.Max(0, Math.Min(t.HeaderRowCount, _rows));
             _rowCells = new List<CellInfo>[_rows];
             var occupied = new bool[_rows, Math.Max(1, _cols)];
@@ -101,22 +123,269 @@ namespace ChohyoPdf.Layout
         public override bool KeepWithNext => _t.KeepWithNext;
         public override bool PageBreakBefore => _t.PageBreakBefore;
 
-        private void ComputeColumns(double width, out double[] xs, out double[] ws, out double offset)
+        /// <summary>
+        /// 内容の幅（列ごとの最小・最大）。セルの内容の最小幅（折り返せない最長の単位）と最大幅（折り返さないときの幅）に、
+        /// セルの余白と罫線の太さの半分（左右）を加え、1 列のセルは列の最大値を採る。横に結合したセルは、
+        /// 結合した列の合計が足りない分を、固定幅でない列に最大幅の比で振り分ける。固定幅の列は、その幅が最小でも最大でもある。
+        /// 入れ子の表・リスト・画像は内容の幅を計測し、幅を指定していない図は 0 として扱う。
+        /// </summary>
+        private IntrinsicWidths GetIntrinsic(LayoutContext ctx)
         {
-            xs = new double[_cols + 1];
-            ws = new double[_cols];
-            double fixedSum = 0, relSum = 0;
-            foreach (var c in _t.Columns)
+            lock (_sync)
             {
-                if (c.Width.HasValue) fixedSum += Math.Max(0, c.Width.Value);
-                else relSum += Math.Max(0, c.RelativeWidth);
+                return _intrinsic ?? (_intrinsic = ComputeIntrinsic(ctx));
             }
-            double rest = Math.Max(0, width - fixedSum);
+        }
+
+        private IntrinsicWidths ComputeIntrinsic(LayoutContext ctx)
+        {
+            var min = new double[_cols];
+            var max = new double[_cols];
+            var isFixed = new bool[_cols];
+            for (int i = 0; i < _cols; i++)
+            {
+                var column = _t.Columns[i];
+                if (_auto[i] || !column.Width.HasValue) continue;
+                isFixed[i] = true;
+                min[i] = max[i] = Math.Max(0, column.Width.Value);
+            }
+
+            var spans = new List<KeyValuePair<CellInfo, double[]>>();
+            foreach (var cells in _rowCells)
+            {
+                foreach (var cell in cells)
+                {
+                    cell.Content.MeasureWidths(ctx, out double cellMin, out double cellMax);
+                    double extra = cell.Padding.Left + cell.Padding.Right + BorderHalf(cell.Left) + BorderHalf(cell.Right);
+                    cellMin += extra;
+                    cellMax += extra;
+                    if (cell.ColSpan == 1)
+                    {
+                        if (isFixed[cell.Col]) continue;
+                        min[cell.Col] = Math.Max(min[cell.Col], cellMin);
+                        max[cell.Col] = Math.Max(max[cell.Col], cellMax);
+                    }
+                    else
+                    {
+                        spans.Add(new KeyValuePair<CellInfo, double[]>(cell, new[] { cellMin, cellMax }));
+                    }
+                }
+            }
+            for (int i = 0; i < _cols; i++) max[i] = Math.Max(max[i], min[i]);
+
+            // 結合したセルは、結合の小さいものから順に、足りない幅を振り分ける
+            spans.Sort((a, b) => a.Key.ColSpan.CompareTo(b.Key.ColSpan));
+            foreach (var pair in spans)
+            {
+                var cell = pair.Key;
+                SpreadSpan(cell, pair.Value[0], min, max, isFixed);
+                SpreadSpan(cell, pair.Value[1], max, max, isFixed);
+                for (int i = cell.Col; i < cell.Col + cell.ColSpan; i++) max[i] = Math.Max(max[i], min[i]);
+            }
+            return new IntrinsicWidths { Min = min, Max = max };
+        }
+
+        private static double BorderHalf(BorderLine? line) => line != null && line.IsVisible ? line.Width / 2 : 0;
+
+        /// <summary>
+        /// 結合したセルが必要とする幅 <paramref name="need"/> に対して、結合した列の <paramref name="target"/> の合計が足りない分を、
+        /// 固定幅でない列に <paramref name="weights"/>（全部 0 なら均等）の比で足す。
+        /// </summary>
+        private static void SpreadSpan(CellInfo cell, double need, double[] target, double[] weights, bool[] isFixed)
+        {
+            double sum = 0, weightSum = 0;
+            int free = 0;
+            for (int i = cell.Col; i < cell.Col + cell.ColSpan; i++)
+            {
+                sum += target[i];
+                if (isFixed[i]) continue;
+                weightSum += weights[i];
+                free++;
+            }
+            if (need <= sum || free == 0) return;
+            double lack = need - sum;
+            for (int i = cell.Col; i < cell.Col + cell.ColSpan; i++)
+            {
+                if (isFixed[i]) continue;
+                target[i] += weightSum > 0 ? lack * weights[i] / weightSum : lack / free;
+            }
+        }
+
+        /// <summary>表の幅。列の最小幅の合計と最大幅の合計（固定幅の列はその幅、比率の列は内容に合わせた幅として数える）。</summary>
+        public override void MeasureWidths(LayoutContext ctx, out double min, out double max)
+        {
+            min = 0;
+            max = 0;
+            if (_rows == 0 || _cols == 0) return;
+            var intrinsic = GetIntrinsic(ctx);
+            for (int i = 0; i < _cols; i++)
+            {
+                min += intrinsic.Min[i];
+                max += intrinsic.Max[i];
+            }
+        }
+
+        /// <summary>
+        /// 内容に合わせる列がある表の列幅。固定幅の列を除いた残りの幅で、内容に合わせる列（と、比率の列）に幅を配る。
+        /// 内容に合わせる列だけなら、最大幅の合計が収まれば最大幅（表は内容の幅になる）、収まらなければ最大幅に比例して縮める（最小幅は下回らない）。
+        /// 最小幅の合計も収まらないときは、最小幅を同じ比率で縮めて収める（長い単語は文字の途中で折り返す）。
+        /// 比率の列があるときは、内容に合わせる列が最大幅を取り、残りを比率の列で比率に従って分ける
+        /// （比率の列の最小幅に足りなければ、比率の列を最小幅にして、残りを内容に合わせる列に配る）。
+        /// </summary>
+        private void ComputeAutoColumns(LayoutContext ctx, double width, bool shrinkToFit, double[] ws)
+        {
+            var intrinsic = GetIntrinsic(ctx);
+            double fixedSum = 0;
+            var autoIdx = new List<int>();
+            var relIdx = new List<int>();
             for (int i = 0; i < _cols; i++)
             {
                 var c = _t.Columns[i];
-                ws[i] = c.Width.HasValue ? Math.Max(0, c.Width.Value) : (relSum > 0 ? rest * Math.Max(0, c.RelativeWidth) / relSum : 0);
-                xs[i + 1] = xs[i] + ws[i];
+                if (_auto[i]) autoIdx.Add(i);
+                else if (c.Width.HasValue)
+                {
+                    ws[i] = Math.Max(0, c.Width.Value);
+                    fixedSum += ws[i];
+                }
+                else relIdx.Add(i);
+            }
+            double scale = shrinkToFit && fixedSum > width && fixedSum > 0 ? Math.Max(0, width) / fixedSum : 1;
+            for (int i = 0; i < _cols; i++)
+            {
+                if (!_auto[i] && _t.Columns[i].Width.HasValue) ws[i] *= scale;
+            }
+            double avail = width - fixedSum * scale;
+
+            var weights = new double[_cols];
+            if (avail <= 1e-6)
+            {
+                // 固定幅の列だけで使い切っている: 内容に合わせる列は最小幅にする（固定幅の列と同じく、収まらなければ右にはみ出す。段組みでは縮める）
+                foreach (int i in autoIdx) ws[i] = intrinsic.Min[i];
+                foreach (int i in relIdx) ws[i] = intrinsic.Min[i];
+                if (shrinkToFit)
+                {
+                    double total = 0;
+                    foreach (double w in ws) total += w;
+                    if (total > width && total > 0)
+                    {
+                        double f = Math.Max(0, width) / total;
+                        for (int i = 0; i < _cols; i++) ws[i] *= f;
+                    }
+                }
+                return;
+            }
+
+            if (relIdx.Count == 0)
+            {
+                FillAuto(autoIdx, avail, intrinsic, ws);
+                return;
+            }
+
+            double autoMax = 0, relMin = 0;
+            foreach (int i in autoIdx) autoMax += intrinsic.Max[i];
+            foreach (int i in relIdx) relMin += intrinsic.Min[i];
+            double rest = avail - autoMax;
+            if (rest >= relMin)
+            {
+                foreach (int i in autoIdx) ws[i] = intrinsic.Max[i];
+                foreach (int i in relIdx) weights[i] = Math.Max(0, _t.Columns[i].RelativeWidth);
+                Fill(relIdx, rest, weights, intrinsic.Min, ws);
+            }
+            else
+            {
+                foreach (int i in relIdx) ws[i] = intrinsic.Min[i];
+                FillAuto(autoIdx, Math.Max(0, avail - relMin), intrinsic, ws);
+            }
+        }
+
+        /// <summary>内容に合わせる列に <paramref name="total"/> の幅を配る（最大幅の合計が収まればそのまま、収まらなければ最大幅に比例して縮める）。</summary>
+        private static void FillAuto(List<int> idx, double total, IntrinsicWidths intrinsic, double[] ws)
+        {
+            double maxSum = 0;
+            foreach (int i in idx) maxSum += intrinsic.Max[i];
+            if (maxSum <= total + 1e-9)
+            {
+                foreach (int i in idx) ws[i] = intrinsic.Max[i];
+                return;
+            }
+            Fill(idx, total, intrinsic.Max, intrinsic.Min, ws);
+        }
+
+        /// <summary>
+        /// 列 <paramref name="idx"/> に合計 <paramref name="total"/> の幅を、<paramref name="weights"/> に比例して配る。
+        /// どの列も <paramref name="lower"/> を下回らない（下回る列は <paramref name="lower"/> にして、残りを残りの列で配り直す）。
+        /// <paramref name="lower"/> の合計が <paramref name="total"/> 以上のときは、<paramref name="lower"/> の比で縮めて合計を <paramref name="total"/> にする。
+        /// </summary>
+        private static void Fill(List<int> idx, double total, double[] weights, double[] lower, double[] ws)
+        {
+            double lowerSum = 0;
+            foreach (int i in idx) lowerSum += lower[i];
+            if (lowerSum >= total)
+            {
+                foreach (int i in idx) ws[i] = lowerSum > 0 ? lower[i] * Math.Max(0, total) / lowerSum : 0;
+                return;
+            }
+            var pinned = new bool[ws.Length];
+            while (true)
+            {
+                double remaining = total, weightSum = 0;
+                int free = 0;
+                foreach (int i in idx)
+                {
+                    if (pinned[i]) remaining -= lower[i];
+                    else
+                    {
+                        weightSum += weights[i];
+                        free++;
+                    }
+                }
+                bool changed = false;
+                foreach (int i in idx)
+                {
+                    if (pinned[i]) continue;
+                    double w = weightSum > 0 ? remaining * weights[i] / weightSum : remaining / free;
+                    if (w < lower[i] - 1e-9)
+                    {
+                        pinned[i] = true;
+                        changed = true;
+                    }
+                    else ws[i] = w;
+                }
+                if (!changed) break;
+            }
+            foreach (int i in idx)
+            {
+                if (pinned[i]) ws[i] = lower[i];
+            }
+        }
+
+        // shrinkToFit: 固定幅の列の合計が width を超えるとき、比率を保って縮めて収める（段組みのセクションで、隣の段にはみ出さないため）。
+        // false なら従来どおり、そのままの幅で右にはみ出す。内容に合わせる列がある表は、ComputeAutoColumns で幅を配る。
+        private void ComputeColumns(LayoutContext ctx, double width, bool shrinkToFit, out double[] xs, out double[] ws, out double offset)
+        {
+            xs = new double[_cols + 1];
+            ws = new double[_cols];
+            if (_hasAuto)
+            {
+                ComputeAutoColumns(ctx, width, shrinkToFit, ws);
+                for (int i = 0; i < _cols; i++) xs[i + 1] = xs[i] + ws[i];
+            }
+            else
+            {
+                double fixedSum = 0, relSum = 0;
+                foreach (var c in _t.Columns)
+                {
+                    if (c.Width.HasValue) fixedSum += Math.Max(0, c.Width.Value);
+                    else relSum += Math.Max(0, c.RelativeWidth);
+                }
+                double rest = Math.Max(0, width - fixedSum);
+                double scale = shrinkToFit && fixedSum > width && fixedSum > 0 ? Math.Max(0, width) / fixedSum : 1;
+                for (int i = 0; i < _cols; i++)
+                {
+                    var c = _t.Columns[i];
+                    ws[i] = c.Width.HasValue ? Math.Max(0, c.Width.Value) * scale : (relSum > 0 ? rest * Math.Max(0, c.RelativeWidth) / relSum : 0);
+                    xs[i + 1] = xs[i] + ws[i];
+                }
             }
             double total = xs[_cols];
             offset = 0;
@@ -147,6 +416,19 @@ namespace ChohyoPdf.Layout
             public Dictionary<CellInfo, Slice> Slices = new Dictionary<CellInfo, Slice>();
             public Dictionary<CellInfo, object?> NextCursors = new Dictionary<CellInfo, object?>();
             public bool Complete = true;
+
+            /// <summary>行の中のセルにある脚注の本文の高さの合計と、その脚注。</summary>
+            public double FootnoteHeight;
+            public List<FootnoteEntry>? Footnotes;
+
+            public void AddFootnotes(Slice slice)
+            {
+                if (slice.Footnotes == null) return;
+                Footnotes = Footnotes ?? new List<FootnoteEntry>();
+                Footnotes.AddRange(slice.Footnotes);
+                FootnoteHeight += slice.FootnoteHeight;
+            }
+
             public double Total
             {
                 get
@@ -181,6 +463,7 @@ namespace ChohyoPdf.Layout
                         slice = cell.Content.Layout(ctx, innerW, double.PositiveInfinity, cur, true);
                     }
                     g.Slices[cell] = slice;
+                    g.AddFootnotes(slice);
                     g.NextCursors[cell] = Done;
                     double need = slice.Height + cell.Padding.Top + cell.Padding.Bottom;
                     if (cell.RowSpan == 1)
@@ -229,6 +512,7 @@ namespace ChohyoPdf.Layout
             var g = new GroupLayout { Start = r, End = r + 1, Heights = new double[1], Complete = true };
             double height = 0;
             bool progressed = false;
+            double footnoteBase = ctx.FootnoteItems;
             foreach (var cell in _rowCells[r])
             {
                 object? cur = null;
@@ -242,9 +526,13 @@ namespace ChohyoPdf.Layout
                 else
                 {
                     double innerW = Math.Max(0, CellWidth(cell, xs) - cell.Padding.Left - cell.Padding.Right);
-                    double innerH = available - cell.Padding.Top - cell.Padding.Bottom;
+                    // 同じ行の前のセルの脚注も、このページの脚注領域を使う
+                    ctx.FootnoteItems = footnoteBase + g.FootnoteHeight;
+                    double innerH = available - cell.Padding.Top - cell.Padding.Bottom - (ctx.FootnoteArea(ctx.FootnoteItems) - ctx.FootnoteArea(footnoteBase));
                     slice = cell.Content.Layout(ctx, innerW, innerH, cur, atTop);
+                    ctx.FootnoteItems = footnoteBase;
                     if (slice.Empty) return null;
+                    g.AddFootnotes(slice);
                     progressed = true;
                     g.NextCursors[cell] = slice.Next ?? Done;
                     if (slice.Next != null) g.Complete = false;
@@ -259,8 +547,21 @@ namespace ChohyoPdf.Layout
 
         public override Slice Layout(LayoutContext ctx, double width, double available, object? cursor, bool atTop)
         {
+            double saved = ctx.FootnoteItems;
+            try
+            {
+                return LayoutRows(ctx, width, available, cursor, atTop);
+            }
+            finally
+            {
+                ctx.FootnoteItems = saved;
+            }
+        }
+
+        private Slice LayoutRows(LayoutContext ctx, double width, double available, object? cursor, bool atTop)
+        {
             if (_rows == 0 || _cols == 0) return new Slice { Height = 0 };
-            ComputeColumns(width, out var xs, out var ws, out double offset);
+            ComputeColumns(ctx, width, ctx.ColumnCount > 1, out var xs, out var ws, out double offset);
             var c = cursor as Cursor;
             bool first = c == null;
             int row = c?.Row ?? 0;
@@ -269,6 +570,19 @@ namespace ChohyoPdf.Layout
             var placedGroups = new List<KeyValuePair<double, GroupLayout>>();
             double y = 0;
 
+            // 脚注: 置いた行の脚注の本文の高さ（fnSum）は、後に置く行や中のセルの利用可能な高さから引く
+            double fnBase = ctx.FootnoteItems;
+            double fnSum = 0;
+            var fnList = new List<FootnoteEntry>();
+            double Reserved() => ctx.FootnoteArea(fnBase + fnSum) - ctx.FootnoteArea(fnBase);
+            double ExtraFor(GroupLayout group) => ctx.FootnoteArea(fnBase + fnSum + group.FootnoteHeight) - ctx.FootnoteArea(fnBase);
+            bool OverLimit(GroupLayout group) => group.FootnoteHeight > 0 && ctx.FootnoteArea(fnBase + fnSum + group.FootnoteHeight) > ctx.FootnoteLimit + 1e-6;
+            void Commit(GroupLayout group)
+            {
+                if (group.Footnotes != null) fnList.AddRange(group.Footnotes);
+                fnSum += group.FootnoteHeight;
+            }
+
             // 見出し行
             if (_headerRows > 0 && (first || _t.RepeatHeaderRows))
             {
@@ -276,9 +590,17 @@ namespace ChohyoPdf.Layout
                 while (r < _headerRows)
                 {
                     int end = GroupEnd(r, _headerRows);
+                    ctx.FootnoteItems = fnBase + fnSum;
                     var g = Measure(ctx, r, end, xs, null);
                     placedGroups.Add(new KeyValuePair<double, GroupLayout>(y, g));
                     y += g.Total;
+                    // 繰り返す見出し行の脚注は、最初の 1 回だけ数える（2 回目以降は同じ脚注をページごとに重ねない）
+                    if (first) Commit(g);
+                    else
+                    {
+                        g.Footnotes = null;
+                        g.FootnoteHeight = 0;
+                    }
                     r = end;
                 }
                 if (first) row = _headerRows;
@@ -289,11 +611,13 @@ namespace ChohyoPdf.Layout
             while (row < _rows)
             {
                 int end = cellCursors != null ? row + 1 : GroupEnd(row, _rows);
+                ctx.FootnoteItems = fnBase + fnSum;
                 var g = Measure(ctx, row, end, xs, cellCursors);
-                if (y + g.Total <= available + 1e-6)
+                if (y + g.Total + ExtraFor(g) <= available + 1e-6 && !OverLimit(g))
                 {
                     placedGroups.Add(new KeyValuePair<double, GroupLayout>(y, g));
                     y += g.Total;
+                    Commit(g);
                     row = end;
                     cellCursors = null;
                     bodyPlaced++;
@@ -306,11 +630,15 @@ namespace ChohyoPdf.Layout
                 bool forced = atTop && bodyPlaced == 0;
                 if (singleRow && (forced || _t.Rows[row].AllowBreakAcrossPages))
                 {
-                    var split = Split(ctx, row, xs, available - y, cellCursors, forced);
+                    ctx.FootnoteItems = fnBase + fnSum;
+                    var split = Split(ctx, row, xs, available - y - Reserved(), cellCursors, forced);
+                    ctx.FootnoteItems = fnBase;
+                    if (split != null && !forced && (y + split.Total + ExtraFor(split) > available + 1e-6 || OverLimit(split))) split = null;
                     if (split != null)
                     {
                         placedGroups.Add(new KeyValuePair<double, GroupLayout>(y, split));
                         y += split.Total;
+                        Commit(split);
                         bodyPlaced++;
                         if (split.Complete)
                         {
@@ -333,6 +661,7 @@ namespace ChohyoPdf.Layout
                 // ページの先頭でも収まらない（固定高さの行や結合行）: はみ出して配置する
                 placedGroups.Add(new KeyValuePair<double, GroupLayout>(y, g));
                 y += g.Total;
+                Commit(g);
                 row = end;
                 cellCursors = null;
                 bodyPlaced++;
@@ -347,6 +676,8 @@ namespace ChohyoPdf.Layout
             {
                 Height = y,
                 Next = next,
+                FootnoteHeight = fnSum,
+                Footnotes = fnList.Count > 0 ? fnList : null,
                 Draw = (gr, x, top) => DrawGroups(gr, x + tableOffset, top, xsLocal, groups),
             };
         }
