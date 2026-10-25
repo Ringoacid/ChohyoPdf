@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<!-- このファイルは docs/tools/build_docs.py で生成しています。編集は docs/*.md と docs/tools/site に行ってください。 -->
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{page_title}}</title>
+<meta name="description" content="{{description}}">
+{{head_extra}}
+<style>
+:root {
+  --bg: #ffffff;
+  --fg: #1f2328;
+  --muted: #59636e;
+  --border: #d1d9e0;
+  --sidebar-bg: #f6f8fa;
+  --accent: #0969da;
+  --accent-bg: #ddf4ff;
+  --brand: #4f46e5;
+  --brand-fg: #ffffff;
+  --code-bg: #f6f8fa;
+  --inline-code-bg: rgba(129, 139, 152, 0.15);
+  --th-bg: #f6f8fa;
+  --card-bg: #ffffff;
+  --topbar-h: 52px;
+  --sidebar-w: 300px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117;
+    --fg: #e6edf3;
+    --muted: #9198a1;
+    --border: #30363d;
+    --sidebar-bg: #151b23;
+    --accent: #4493f8;
+    --accent-bg: rgba(56, 139, 253, 0.15);
+    --brand: #6366f1;
+    --code-bg: #151b23;
+    --inline-code-bg: rgba(101, 108, 118, 0.3);
+    --th-bg: #151b23;
+    --card-bg: #151b23;
+    color-scheme: dark;
+  }
+}
+
+* { box-sizing: border-box; }
+html { scroll-padding-top: calc(var(--topbar-h) + 16px); }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: system-ui, -apple-system, "Segoe UI", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", Meiryo, sans-serif;
+  font-size: 16px;
+  line-height: 1.8;
+  -webkit-text-size-adjust: 100%;
+}
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+code, pre { font-family: "Cascadia Mono", Consolas, "SFMono-Regular", Menlo, "BIZ UDGothic", "MS Gothic", monospace; }
+
+/* 上部のバー */
+.topbar {
+  position: sticky; top: 0; z-index: 20;
+  display: flex; align-items: center; gap: 12px;
+  height: var(--topbar-h); padding: 0 20px;
+  background: var(--bg); border-bottom: 1px solid var(--border);
+}
+.topbar .brand { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; color: var(--fg); font-size: 17px; white-space: nowrap; }
+.topbar .brand img { width: 24px; height: 24px; }
+.topbar .brand:hover { text-decoration: none; }
+.site-nav { display: flex; gap: 2px; margin-left: 12px; overflow-x: auto; scrollbar-width: none; }
+.site-nav a {
+  padding: 6px 10px; border-radius: 6px;
+  color: var(--muted); font-size: 14px; white-space: nowrap;
+}
+.site-nav a:hover { background: var(--inline-code-bg); color: var(--fg); text-decoration: none; }
+.site-nav a[aria-current="page"] { color: var(--fg); font-weight: 600; background: var(--inline-code-bg); }
+.topbar .spacer { flex: 1; }
+.topbar .ext { color: var(--muted); font-size: 14px; white-space: nowrap; }
+.topbar .ext:hover { color: var(--accent); }
+.menu {
+  display: none;
+  border: 1px solid var(--border); border-radius: 6px;
+  background: transparent; color: var(--fg);
+  padding: 4px 10px; font: inherit; font-size: 14px; cursor: pointer;
+}
+
+/* 目次と本文 */
+.layout { display: grid; grid-template-columns: var(--sidebar-w) minmax(0, 1fr); }
+.home .layout { display: block; }
+.sidebar {
+  position: sticky; top: var(--topbar-h);
+  height: calc(100vh - var(--topbar-h));
+  overflow-y: auto; overscroll-behavior: contain;
+  padding: 20px 12px 48px;
+  background: var(--sidebar-bg); border-right: 1px solid var(--border);
+  font-size: 14px; line-height: 1.5;
+}
+.sidebar .site-nav { display: none; }
+.toc, .toc ul { list-style: none; margin: 0; padding: 0; }
+.toc li + li { margin-top: 0; }
+.toc a {
+  display: block; padding: 5px 10px; border-radius: 6px;
+  color: var(--fg); border-left: 3px solid transparent;
+}
+.toc a:hover { background: var(--inline-code-bg); text-decoration: none; }
+.toc .chapter > a { font-weight: 600; margin-top: 2px; }
+.toc .chapter > ul { display: none; margin: 2px 0 8px 10px; }
+.toc .chapter.open > ul { display: block; }
+.toc .chapter > ul a { color: var(--muted); }
+.toc .chapter.open > a { color: var(--accent); }
+.toc a.active {
+  color: var(--accent) !important; background: var(--accent-bg);
+  border-left-color: var(--accent); border-radius: 0 6px 6px 0;
+}
+.toc code { font-size: 0.92em; }
+
+main { min-width: 0; padding: 32px 48px 120px; }
+.content { max-width: 880px; margin: 0 auto; }
+.home .content { max-width: 1040px; }
+.content > :first-child { margin-top: 0; }
+
+h1, h2, h3, h4 { line-height: 1.4; position: relative; }
+h1 { font-size: 2em; margin: 0 0 0.6em; }
+h2 { font-size: 1.55em; margin: 2.6em 0 0.8em; padding-top: 1.2em; border-top: 1px solid var(--border); }
+h3 { font-size: 1.22em; margin: 2em 0 0.6em; }
+h4 { font-size: 1.05em; margin: 1.6em 0 0.5em; }
+.anchor {
+  margin-left: 0.4em; color: var(--muted); opacity: 0;
+  font-weight: 400; text-decoration: none !important;
+}
+h2:hover .anchor, h3:hover .anchor, h4:hover .anchor, .anchor:focus { opacity: 1; }
+hr { display: none; }   /* 章の区切りは h2 の罫線で示す */
+p, ul, ol, table, blockquote { margin: 0 0 1em; }
+ul, ol { padding-left: 1.6em; }
+li + li { margin-top: 0.25em; }
+blockquote { margin-left: 0; padding: 0.2em 1em; color: var(--muted); border-left: 4px solid var(--border); }
+:not(pre) > code {
+  padding: 0.12em 0.38em; border-radius: 5px;
+  background: var(--inline-code-bg); font-size: 0.88em;
+  overflow-wrap: break-word;   /* 長いパスで、狭い画面の横幅を超えないようにする */
+}
+
+/* 表 */
+.table-wrap { overflow-x: auto; margin: 0 0 1.2em; }
+.table-wrap table { margin: 0; }
+table { border-collapse: collapse; font-size: 0.92em; line-height: 1.6; }
+th, td { border: 1px solid var(--border); padding: 6px 12px; vertical-align: top; text-align: left; }
+th { background: var(--th-bg); font-weight: 600; }
+
+/* 画像と動画 */
+.figure { display: block; margin: 1.2em 0 1.6em; }
+.figure img { display: block; max-width: 100%; height: auto; }
+.video { margin: 1.2em 0 1.6em; }
+.video video { display: block; width: 100%; height: auto; border: 1px solid var(--border); border-radius: 8px; background: #000; }
+
+/* コード */
+.code { margin: 1.2em 0 1.4em; border: 1px solid var(--border); border-radius: 8px; background: var(--code-bg); overflow: hidden; }
+.code-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  min-height: 34px; padding: 3px 6px 3px 14px;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted); font-size: 12px; line-height: 1;
+}
+.copy {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 9px; border: 1px solid transparent; border-radius: 6px;
+  background: transparent; color: var(--muted);
+  font: inherit; font-size: 12px; cursor: pointer;
+}
+.copy:hover { border-color: var(--border); color: var(--fg); background: var(--bg); }
+.copy.done { color: #1a7f37; }
+@media (prefers-color-scheme: dark) { .copy.done { color: #3fb950; } }
+.copy svg { width: 14px; height: 14px; }
+.code pre { margin: 0; padding: 14px 16px; overflow-x: auto; font-size: 13.5px; line-height: 1.6; tab-size: 4; }
+.code pre code { font-size: inherit; }
+{{highlight_css}}
+
+/* トップページ */
+.hero { padding: 16px 0 8px; }
+.hero h1 { font-size: 2.4em; margin: 0 0 0.3em; }
+.hero .lead { font-size: 1.15em; color: var(--muted); margin: 0 0 1.2em; }
+.hero .points { padding-left: 1.2em; margin-bottom: 1.4em; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 0 0 1.6em; }
+.button {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 9px 18px; border-radius: 8px; border: 1px solid var(--border);
+  color: var(--fg); background: var(--card-bg); font-weight: 600; font-size: 15px;
+}
+.button:hover { text-decoration: none; border-color: var(--muted); }
+.button.primary { background: var(--brand); border-color: var(--brand); color: var(--brand-fg); }
+.button.primary:hover { filter: brightness(1.08); }
+.shot { display: block; max-width: 100%; height: auto; border: 1px solid var(--border); border-radius: 8px; }
+.gallery { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; margin: 0 0 1.6em; }
+.gallery .card {
+  display: flex; flex-direction: column; gap: 10px;
+  padding: 14px; border: 1px solid var(--border); border-radius: 10px;
+  background: var(--card-bg); color: var(--fg);
+}
+.gallery .card:hover { text-decoration: none; border-color: var(--accent); }
+.gallery .card.wide { grid-column: 1 / -1; }
+.gallery .card img { display: block; width: 100%; height: auto; background: #fff; border-radius: 4px; }
+.gallery .card strong { font-size: 1.02em; }
+.gallery .card span { color: var(--muted); font-size: 0.9em; line-height: 1.6; }
+.split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+.split > * { min-width: 0; }
+
+footer { margin-top: 64px; padding-top: 16px; border-top: 1px solid var(--border); color: var(--muted); font-size: 13px; }
+
+/* 狭い画面では、目次を左から引き出す */
+.backdrop { display: none; }
+@media (max-width: 960px) {
+  .has-toc .menu { display: inline-block; }
+  .layout { display: block; }
+  .sidebar {
+    position: fixed; z-index: 30; top: var(--topbar-h); left: 0; bottom: 0;
+    width: min(320px, 86vw); height: auto;
+    transform: translateX(-100%); transition: transform 0.2s ease;
+    box-shadow: 0 0 24px rgba(0, 0, 0, 0.2);
+  }
+  .has-toc .topbar .site-nav { display: none; }
+  .sidebar .site-nav { display: flex; flex-wrap: wrap; margin: 0 0 14px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+  body.toc-open .sidebar { transform: none; }
+  body.toc-open .backdrop {
+    display: block; position: fixed; z-index: 25; inset: var(--topbar-h) 0 0 0;
+    background: rgba(0, 0, 0, 0.3);
+  }
+  main { padding: 24px 16px 96px; }
+  .topbar { padding: 0 16px; gap: 8px; }
+  .site-nav { margin-left: 0; }
+  .topbar .ext { display: none; }
+  h1 { font-size: 1.7em; }
+  h2 { font-size: 1.4em; }
+  .hero h1 { font-size: 1.9em; }
+  .gallery, .split { grid-template-columns: minmax(0, 1fr); }
+}
+@media print {
+  .topbar, .sidebar, .copy, .anchor { display: none !important; }
+  .layout { display: block; }
+  main { padding: 0; }
+}
+</style>
+</head>
+<body class="{{body_class}}">
+<header class="topbar">
+  <button type="button" class="menu" aria-controls="toc" aria-expanded="false">目次</button>
+  <a class="brand" href="index.html">{{brand}}</a>
+  {{nav}}
+  <span class="spacer"></span>
+  <a class="ext" href="https://www.nuget.org/packages/ChohyoPdf">NuGet</a>
+  <a class="ext" href="https://github.com/Ringoacid/ChohyoPdf">GitHub</a>
+</header>
+<div class="layout">
+{{sidebar}}
+  <main>
+    <article class="content">
+{{content}}
+      <footer>{{footer}}</footer>
+    </article>
+  </main>
+</div>
+<script>
+(() => {
+  const sidebar = document.querySelector('.sidebar');
+  if (sidebar) {
+    const links = Array.from(sidebar.querySelectorAll('.toc a'));
+    const linkById = new Map(links.map(a => [decodeURIComponent(a.hash.slice(1)), a]));
+    const heads = Array.from(document.querySelectorAll('main h2[id], main h3[id]')).filter(h => linkById.has(h.id));
+    let clicked = null;   // 目次で選んだ見出し。ページの末尾では、スクロールの位置より優先する
+    let current = null;
+
+    // 今見ている見出し（画面の上端より上にある最後の見出し）を目次で強調する
+    function update() {
+      const top = document.querySelector('.topbar').offsetHeight + 24;
+      let active = null;
+      for (const h of heads) {
+        if (h.getBoundingClientRect().top <= top) active = h; else break;
+      }
+      const atBottom = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4;
+      if (atBottom) {
+        const r = clicked && clicked.getBoundingClientRect();
+        active = r && r.top >= 0 && r.top < window.innerHeight ? clicked : heads[heads.length - 1];
+      }
+      if (active === current) return;
+      current = active;
+      for (const a of links) a.classList.remove('active');
+      for (const li of sidebar.querySelectorAll('.chapter.open')) li.classList.remove('open');
+      if (!active) return;
+      const link = linkById.get(active.id);
+      link.classList.add('active');
+      link.closest('.chapter').classList.add('open');
+      reveal(link);
+    }
+
+    // 強調した項目が目次の欄に見えるようにする
+    function reveal(link) {
+      const s = sidebar.getBoundingClientRect();
+      const r = link.getBoundingClientRect();
+      const margin = 48;
+      if (r.top < s.top + margin) sidebar.scrollTop += r.top - s.top - margin;
+      else if (r.bottom > s.bottom - margin) sidebar.scrollTop += r.bottom - s.bottom + margin;
+    }
+
+    let ticking = false;
+    window.addEventListener('scroll', () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => { ticking = false; update(); });
+    }, { passive: true });
+    window.addEventListener('resize', update);
+    update();
+
+    // 狭い画面の目次の開閉
+    const menu = document.querySelector('.menu');
+    function setOpen(open) {
+      document.body.classList.toggle('toc-open', open);
+      menu.setAttribute('aria-expanded', String(open));
+    }
+    menu.addEventListener('click', () => setOpen(!document.body.classList.contains('toc-open')));
+    document.querySelector('.backdrop').addEventListener('click', () => setOpen(false));
+    sidebar.addEventListener('click', e => {
+      const a = e.target.closest('.toc a');
+      if (!a) return;
+      clicked = document.getElementById(decodeURIComponent(a.hash.slice(1)));
+      setOpen(false);
+    });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') setOpen(false); });
+  }
+
+  // コードのコピー。Clipboard API は環境によって許可待ちのまま終わらないことがあるので、
+  // クリックの処理の中で同期的に動く execCommand を先に使い、失敗したときだけ Clipboard API を使う
+  function copyWithSelection(text) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (_) { }
+    ta.remove();
+    return ok;
+  }
+  document.addEventListener('click', async e => {
+    const button = e.target.closest('.copy');
+    if (!button) return;
+    const text = button.closest('.code').querySelector('code').textContent;
+    let ok = copyWithSelection(text);
+    if (!ok && navigator.clipboard) {
+      const timeout = new Promise(resolve => setTimeout(() => resolve(false), 2000));
+      ok = await Promise.race([navigator.clipboard.writeText(text).then(() => true, () => false), timeout]);
+    }
+    const label = button.querySelector('span');
+    label.textContent = ok ? 'コピーしました' : 'コピーできませんでした';
+    button.classList.toggle('done', ok);
+    clearTimeout(button.timer);
+    button.timer = setTimeout(() => { label.textContent = 'コピー'; button.classList.remove('done'); }, 1600);
+  });
+})();
+</script>
+</body>
+</html>

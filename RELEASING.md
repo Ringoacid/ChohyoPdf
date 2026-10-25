@@ -1,6 +1,6 @@
 # リリース手順
 
-ChohyoPdf を nuget.org に公開する手順です。バージョン番号のタグを GitHub に push すると、GitHub Actions（`.github/workflows/release.yml`）がテストを実行し、NuGet に公開します。
+ライブラリ（ChohyoPdf）を nuget.org に公開する手順です。GUI デザイナーの ZIP の公開は、下の「[デザイナーの公開](#デザイナーの公開)」を見てください。バージョン番号のタグを GitHub に push すると、GitHub Actions（`.github/workflows/release.yml`）がテストを実行し、NuGet に公開します。
 
 ## 公開の手順
 
@@ -56,3 +56,21 @@ ChohyoPdf を nuget.org に公開する手順です。バージョン番号の�
   - `NUGET_USER`：nuget.org のユーザー名（`Ringoacid`）
 
 `release.yml` のファイル名を変えたら、ポリシーの Workflow File も合わせて変えてください。新しい ID のパッケージを追加で公開するときは、ポリシーの Scopes を「Push」（新しいパッケージを含む）に戻し、Glob Patterns にその ID を追加します。
+
+## デザイナーの公開
+
+GUI デザイナー（ChohyoPdf Designer）は、ライブラリとは別のバージョン番号で、GitHub の Releases に ZIP ファイルとして公開します。`designer-v` で始まるタグを push すると、GitHub Actions（`.github/workflows/designer-release.yml`）がデザイナーのテストを実行し、自己完結の版（win-x64）を ZIP にして公開します。ライブラリの公開（`v` で始まるタグ）は動きません。
+
+```
+git tag -a designer-v0.1.0 -m "ChohyoPdf Designer 0.1.0"
+git push origin designer-v0.1.0
+```
+
+- ZIP のファイル名は、バージョンにかかわらず `ChohyoPdfDesigner-win-x64.zip` です。説明書と README は `releases/latest/download/ChohyoPdfDesigner-win-x64.zip` で最新版を指しています。
+- `designer-v0.2.0-preview.1` のように `-` を含むバージョンは、プレリリースになります。プレリリースは「latest」に含まれないので、説明書のダウンロードのリンクは前のバージョンを指したままです。
+- GitHub の Releases は、今はデザイナーだけが使っています。ライブラリの公開でも Releases を作るようにすると、「latest」がライブラリのリリースを指して、デザイナーのダウンロードのリンクが切れます。そのときは、リンクをタグ付きの URL にするなどの対応が必要です。
+- 公開した Release の説明は、GitHub の画面で書き足せます。
+
+## サイト（GitHub Pages）
+
+`main` に push するたびに、GitHub Actions（`.github/workflows/pages.yml`）がサイトを作り直して公開します。使うには、リポジトリの Settings → Pages の「Build and deployment」の Source を「GitHub Actions」にしておきます（最初に一度だけ設定します）。

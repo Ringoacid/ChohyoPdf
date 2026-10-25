@@ -1,28 +1,15 @@
 # ChohyoPdf
 
+[![NuGet](https://img.shields.io/nuget/v/ChohyoPdf.svg)](https://www.nuget.org/packages/ChohyoPdf)
+[![CI](https://github.com/Ringoacid/ChohyoPdf/actions/workflows/ci.yml/badge.svg)](https://github.com/Ringoacid/ChohyoPdf/actions/workflows/ci.yml)
+
 日本語の帳票・文書を作るための、C# 製 PDF 生成ライブラリです。
 
 - **MIT ライセンス**のみで提供します（デュアルライセンスではなく、GPL / AGPL でもありません）。商用利用もできます。
-- PDFsharp / MigraDoc を含め、既存ライブラリのコードは使わずにゼロから実装しています。
 - 外部パッケージへの依存はありません。
-- 対応フレームワークは .NET Framework 4.6.2 以降、.NET Standard 2.0、.NET 8、.NET 10 です。.NET 9 では net8.0 版が、.NET Core 3.1 や .NET 5〜7 など .NET Standard 2.0 に対応した環境では netstandard2.0 版が使われます。
+- 対応フレームワークは .NET Framework 4.6.2 以降、.NET Standard 2.0、.NET 8、.NET 10 です（.NET 9 では net8.0 版、.NET Core 3.1 や .NET 5〜7 では netstandard2.0 版が使われます）。
 
-サンプルコードと出力結果の画像を載せた [説明書](https://github.com/Ringoacid/ChohyoPdf/blob/main/docs/manual.md) に、機能ごとの使い方をまとめています。
-
-## できること
-
-| 分類 | 機能 |
-| --- | --- |
-| 日本語テキスト | TrueType / TrueType Collection（.ttf / .ttc）フォントの埋め込み（使った文字だけのサブセット）、サロゲートペア（𠮷 など）、テキスト抽出・検索用の ToUnicode、代替フォント（フォールバック） |
-| 組版 | 自動折り返し、禁則処理（行頭・行末）、欧文の単語単位の改行、左／中央／右揃え、両端揃え、均等割り付け、行送り、インデント、段落前後の間隔 |
-| 文字装飾 | 太字・斜体（専用フォントがなければ疑似太字・疑似斜体）、下線、取り消し線、文字色、マーカー、字間、リンク |
-| ページ送り | 自動改ページ、段落の分割（改ページ位置の調整あり）、「次の段落と分離しない」「段落を分割しない」、改ページ、セクションごとの用紙設定 |
-| 表 | 固定幅・比率指定の列、横方向・縦方向のセル結合、罫線（太さ・色・破線）、背景色、縞模様、見出し行の繰り返し、ページをまたぐ行の分割、セル内への段落・画像・表の配置 |
-| 図 | JPEG（CMYK を含む）と PNG（全カラータイプ・16 bit・インターレース・透過）、直線・矩形・角丸矩形・楕円・扇形・多角形・ベジェ曲線、破線、半透明、回転・拡大縮小、クリップ |
-| ページ要素 | ヘッダー、フッター、ページ番号・総ページ数、背景や前景の描画（透かし・帳票の枠など） |
-| 座標指定の描画 | 帳票向けに、座標を指定してテキストボックス（折り返し・縮小して全体を表示）や図形を描ける低レベル API |
-
-PDF の読み込み・編集はできません（生成専用です）。
+![ChohyoPdf で作った 2 ページの請求書。明細の表が 2 ページ目に続き、見出し行が繰り返されている](https://raw.githubusercontent.com/Ringoacid/ChohyoPdf/main/docs/images/sample-invoice.png)
 
 ## インストール
 
@@ -30,129 +17,80 @@ PDF の読み込み・編集はできません（生成専用です）。
 dotnet add package ChohyoPdf
 ```
 
-## 使い方
+## コードの例
 
-### 自動レイアウト（Document）
+段落や表を順に追加するだけで、折り返し・禁則処理・改ページはライブラリが行います。
 
 ```csharp
 using ChohyoPdf;
 
 var font = PdfFont.FromSystem("Yu Gothic Regular");      // 游ゴシック
+font.BoldVariant = PdfFont.FromSystem("Yu Gothic Bold");
+
 var doc = new Document(font, 10.5);
-doc.Info.Title = "請求書";
+var section = doc.AddSection();                          // A4 縦・余白 20 mm
 
-var section = doc.AddSection();                           // 既定は A4 縦・余白 20 mm
-section.Footer.AddParagraph().SetAlignment(TextAlignment.Center)
-    .AddPageNumber().AddText(" / ").AddPageCount();
-
-section.AddParagraph("請求書").SetFontSize(20).SetBold().SetAlignment(TextAlignment.Center);
-section.AddParagraph("長い文章は本文の幅で自動的に折り返され、ページの終わりに来ると次のページへ送られます。");
+section.AddParagraph("御見積書").SetFontSize(18).SetBold().SetAlignment(TextAlignment.Center);
+section.AddParagraph("株式会社サンプル 御中").SetFontSize(12).SetSpaceBefore(12);
+section.AddParagraph("下記のとおり御見積り申し上げます。").SetSpaceAfter(8);
 
 var table = section.AddTable();
-table.AddColumn(Unit.Mm(15));                             // 固定幅
-table.AddRelativeColumn(3);                               // 残りの幅を 3:1 で分ける
-table.AddRelativeColumn(1).Alignment = TextAlignment.Right;
-table.HeaderBackground = PdfColor.FromHex("#DCE6F2");
-table.AddHeaderRow("No.", "品名", "金額");                // 改ページ後も繰り返される
-for (int i = 1; i <= 100; i++)
-    table.AddRow(i.ToString(), "商品 " + i, (i * 1000).ToString("#,0"));
+table.AddColumns(1, 5, 1.2, 2);                          // 列幅の比率
+table.Columns[2].Alignment = TextAlignment.Right;
+table.Columns[3].Alignment = TextAlignment.Right;
+table.HeaderBackground = PdfColor.FromHex("#DDEBF7");
+table.AddHeaderRow("No.", "品名", "数量", "金額");     // 次のページにも繰り返す
+table.AddRow("1", "ノートパソコン 14 インチ", "2", "396,000");
+table.AddRow("2", "液晶モニター 27 インチ（高さ調整スタンド付き、ケーブル類一式を含む）", "4", "168,000");
+table.AddRow("3", "USB-C ドック", "4", "52,800");
 
-section.AddImage(PdfImage.FromFile("logo.png"), width: Unit.Mm(40));
-section.AddDrawing(Unit.Mm(30), (g, rect) =>
-{
-    // (0, 0) が図の左上。単位はポイント
-    g.DrawRectangle(new PdfPen(PdfColor.Blue, 1), PdfColor.FromHex("#EEF"), 0, 0, rect.Width, rect.Height);
-});
-
-doc.Save("invoice.pdf");
+doc.Save("quick-start.pdf");
 ```
 
-### 座標指定の描画（PdfDocument / PdfGraphics）
+出力される PDF は次のとおりです。
 
-座標は**左上が原点、y は下向き、単位はポイント**（1/72 インチ）です。`Unit.Mm()` でミリメートルから変換できます。
+![上のコードで作った見積書。中央揃えの表題、宛名、4 列の表](https://raw.githubusercontent.com/Ringoacid/ChohyoPdf/main/docs/images/quick-start.png)
 
-```csharp
-var pdf = new PdfDocument();
-var page = pdf.AddPage(PageSize.A4);
-var g = page.Graphics;
-var style = new TextStyle(font, 11);
+申込書や伝票のように決まった位置に印字する帳票は、座標を指定して文字や図形を描く API で作れます。2 つの API は組み合わせて使えます。
 
-g.DrawText("左上が (x, y) の 1 行テキスト", Unit.Mm(20), Unit.Mm(20), style);
+## 作例
 
-var box = new PdfRect(Unit.Mm(20), Unit.Mm(30), Unit.Mm(60), Unit.Mm(12));
-g.DrawRectangle(new PdfPen(PdfColor.Black, 0.5), box.X, box.Y, box.Width, box.Height);
-g.DrawTextBox("枠に収まらない長い文字列は縮小して表示します", box, style,
-    new TextBoxOptions { ShrinkToFit = true, VerticalAlignment = VerticalAlignment.Middle });
+どの画像も、ChohyoPdf で出力した PDF です。画像をクリックすると、作り方を説明した説明書の節を開きます。
 
-g.DrawTextBox("氏名", new PdfRect(Unit.Mm(20), Unit.Mm(45), Unit.Mm(30), Unit.Mm(8)), style,
-    new TextBoxOptions { Alignment = TextAlignment.Distribute });   // 均等割り付け
+**レポート**：名前付きスタイル、禁則処理と両端揃え、セルを結合した表、画像、グラフ、長い表の自動改ページ
 
-pdf.Save("form.pdf");
-```
+[![4 ページのレポート](https://raw.githubusercontent.com/Ringoacid/ChohyoPdf/main/docs/images/sample-report.png)](https://ringoacid.github.io/ChohyoPdf/manual.html#92-レポート)
 
-`Document.Render()` で、自動レイアウトした結果を `PdfDocument` として受け取り、さらに座標指定で描き足すこともできます。`Section.PageBackground` / `PageForeground` を使うと、全ページに枠や透かしを描けます。
+**目次**：見出しから自動で作り、ページ番号も自動で確定します。前付けをローマ数字にするなど、ページ番号の書式も選べます
 
-### スタイル
+[![ローマ数字のページに置いた目次と、本文のページ](https://raw.githubusercontent.com/Ringoacid/ChohyoPdf/main/docs/images/table-of-contents.png)](https://ringoacid.github.io/ChohyoPdf/manual.html#411-目次)
 
-`TextStyle` と `ParagraphFormat` のプロパティは、null のままにすると親の値を引き継ぎます。引き継ぎの順序は次のとおりです。
+| 座標指定の帳票（均等割り付け、枠に合わせた縮小） | グラフ（図形の描画） |
+| --- | --- |
+| [![申込書](https://raw.githubusercontent.com/Ringoacid/ChohyoPdf/main/docs/images/form.png)](https://ringoacid.github.io/ChohyoPdf/manual.html#84-申込書の例) | [![棒グラフと円グラフ](https://raw.githubusercontent.com/Ringoacid/ChohyoPdf/main/docs/images/charts.png)](https://ringoacid.github.io/ChohyoPdf/manual.html#74-グラフ) |
 
-文書の既定値 → 表 → 行 → セル → 名前付きスタイル → 段落 → 文字列
+| ルビ（振り仮名） | 表のセル結合 |
+| --- | --- |
+| [![ルビを付けた段落](https://raw.githubusercontent.com/Ringoacid/ChohyoPdf/main/docs/images/ruby.png)](https://ringoacid.github.io/ChohyoPdf/manual.html#311-ルビ振り仮名) | [![見出しを 2 行にし、縦にセルを結合した集計表](https://raw.githubusercontent.com/Ringoacid/ChohyoPdf/main/docs/images/table-merge.png)](https://ringoacid.github.io/ChohyoPdf/manual.html#53-セルの結合) |
 
-```csharp
-doc.DefaultTextStyle.FallbackFonts = new[] { PdfFont.FromSystem("Segoe UI Symbol") }; // グリフがない文字の代替
-doc.DefaultParagraphFormat.Alignment = TextAlignment.Justify;
-doc.DefaultParagraphFormat.LineSpacing = 1.6;             // 文字サイズ × 1.6 の行送り
+このほか、段組み・脚注・箇条書き・ヘッダーとフッター・透かし・しおり・文書内リンク・透過 PNG・写真の向き（EXIF）の反映などに対応しています。機能の一覧は [説明書の目次](https://ringoacid.github.io/ChohyoPdf/manual.html) を見てください。PDF の読み込みと編集はできません（生成専用です）。
 
-doc.Styles["見出し"] = new ParagraphStyle(
-    new TextStyle { FontSize = 14, Bold = true },
-    new ParagraphFormat { SpaceBefore = 12, SpaceAfter = 6, KeepWithNext = true });
-section.AddParagraph("1. 概要", "見出し");
+## GUI デザイナー
 
-var p = section.AddParagraph("通常の文字、");
-p.AddText("赤い太字", new TextStyle { Color = PdfColor.Red, Bold = true });
-p.AddLink("リンク", "https://example.com/");
-```
+画面上で部品を並べて文書や帳票をデザインし、PDF や、同じ PDF を作る C# のコードとして出力できる Windows アプリ（ChohyoPdf Designer）もあります。宛名などをあとから入れる差し込み欄（`{顧客名}`）や、データの件数だけ行をくり返す表も作れます。
 
-表のセルとヘッダー/フッターの中では、本文用の字下げ・段落前後の間隔・揃えを引き継ぎません（行送りと文字スタイルは引き継ぎます）。
+[ZIP ファイルをダウンロード](https://github.com/Ringoacid/ChohyoPdf/releases/latest/download/ChohyoPdfDesigner-win-x64.zip)（Windows 10 / 11 の x64、約 70 MB）し、展開して `ChohyoPdfDesigner.exe` を起動します。.NET のインストールは不要です。使い方は [ChohyoPdf Designer 説明書](https://ringoacid.github.io/ChohyoPdf/designer.html) を見てください。
 
-## フォント
+![ChohyoPdf Designer の画面。ページの一覧、編集中のページ、表の書式設定が並んでいる](https://raw.githubusercontent.com/Ringoacid/ChohyoPdf/main/docs/images/designer/overview.png)
 
-- **TrueType アウトラインのフォント（.ttf / .ttc）に対応**しています。Windows の游ゴシック・游明朝・メイリオ・MS ゴシック・MS 明朝、Google Fonts の Noto Sans JP / Noto Serif JP（TTF 版）、IPAex フォントなどが使えます。
-- 可変フォント（例: Windows 11 の `NotoSansJP-VF.ttf`）は、フォントの既定インスタンスの形で描画されます。既定インスタンスは Regular とは限りません（NotoSansJP-VF は Thin）。静的なフォント（Regular / Bold などウェイトごとのファイル）を使ってください。`PdfFont.IsVariableFont` で判定でき、`PdfFont.FromSystem` は同名の静的フォントを優先します。
-- CFF アウトラインの OpenType（.otf。Source Han Sans や Noto Sans CJK の OTF 版など）には対応していません。読み込むと `NotSupportedException` になります。
-- `PdfFont.FromFile(path, faceIndex)` または `PdfFont.FromFile(path, "MS PGothic")` のように指定して読み込みます。TTC の中のフォント名は `PdfFont.GetFaceNames(path)` で確認できます。
-- `PdfFont.FromSystem("游ゴシック")` を使うと、OS のフォントフォルダを英語名・日本語名で検索します。
-- 太字のフォントがあれば `font.BoldVariant = boldFont` のように対応付けます。対応付けがなければ疑似太字（輪郭を太らせる描画）になります。
-- 埋め込むのは使った文字のグリフだけなので、ファイルサイズは小さく抑えられます。
-- 1 つの `PdfFont` / `PdfImage` は複数の文書で共有できます。毎回読み込み直す必要はありません。
+## ドキュメント
 
-> **フォントのライセンスについて**
-> PDF にフォントを埋め込んで配布してよいかどうかは、フォントごとのライセンスで決まります。利用するフォントのライセンスは、利用者自身で確認してください。
-> OS/2 テーブルで埋め込みが禁止されているフォント（Restricted License）は、既定では読み込み時に例外になります。
+ドキュメントは [ChohyoPdf のサイト](https://ringoacid.github.io/ChohyoPdf/) にまとめています。
 
-## 制限事項
-
-- 縦書き、合字・カーニングなどの OpenType レイアウト機能（GSUB / GPOS）、アラビア文字などの複雑な文字体系、右から左に書く文字には対応していません。
-- 異体字セレクタ（IVS）は無視し、基底の文字のグリフで描画します。
-- ヘッダー/フッターの高さに応じて本文の位置は変わりません。上下の余白（`PageSetup.Margins`）は、ヘッダー/フッターが収まる大きさにしてください。
-- 改ページ（`AddPageBreak`）はページの先頭では無視されます。本文の最後に置くと、最後に白紙のページができます。
-- 表の行は、ページ末尾に収まらなければ行ごと次のページへ送ります。`Row.AllowBreakAcrossPages = true` にすると、行を分割してページ末尾の余白を使います。1 ページに収まらない行は、設定にかかわらず分割します。
-- JPEG の EXIF の回転情報は無視します（スマートフォンの写真が横向きのまま表示されることがあります）。
-- 縦に結合したセルのグループ、および高さを固定（`RowHeightRule.Exactly`）した行は、ページをまたいで分割しません。1 ページに収まらない場合は、ページからはみ出して描画されます。
-- 暗号化、電子署名、PDF/A、タグ付き PDF、フォーム（AcroForm）には対応していません。
-
-## ビルドとテスト
-
-```
-dotnet build ChohyoPdf.sln
-dotnet test tests/ChohyoPdf.Tests
-dotnet test tests/ChohyoPdf.Tests -f net8.0 -p:LibraryTargetFramework=netstandard2.0   # netstandard2.0 版のテスト
-dotnet run --project samples/ChohyoPdf.Samples -f net8.0 -- 出力先フォルダ
-dotnet pack src/ChohyoPdf -c Release -o artifacts
-python docs/tools/build_docs.py      # 説明書と画像を作り直す
-```
-
-テストは net8.0 / net10.0 / net48 で実行します（net48 では net462 版のライブラリを使います）。netstandard2.0 版は、上のように `LibraryTargetFramework` を指定して net8.0 で実行します。日本語フォントを使うテストのうち、フォントが見つからない環境では検証を省略するものがあります。
+- [説明書](https://ringoacid.github.io/ChohyoPdf/manual.html)：機能ごとの使い方を、サンプルコードと出力結果の画像で説明しています。フォントの選び方、困ったときの対処、対応していない機能もここにあります（GitHub では [docs/manual.md](https://github.com/Ringoacid/ChohyoPdf/blob/main/docs/manual.md)）。
+- [API リファレンス](https://ringoacid.github.io/ChohyoPdf/api/)：すべての公開クラスとメンバーの説明です。
+- [ChohyoPdf Designer 説明書](https://ringoacid.github.io/ChohyoPdf/designer.html)：GUI デザイナーの使い方です（GitHub では [docs/designer.md](https://github.com/Ringoacid/ChohyoPdf/blob/main/docs/designer.md)）。
+- [開発者向けの説明](https://github.com/Ringoacid/ChohyoPdf/blob/main/CONTRIBUTING.md)：ライブラリやデザイナーを改造する人向けに、ビルド・テスト・ドキュメントの作り直し方をまとめています。
 
 ## ライセンス
 

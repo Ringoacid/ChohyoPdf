@@ -1,0 +1,49 @@
+{
+  "$schema": "https://raw.githubusercontent.com/dotnet/docfx/main/schemas/docfx.schema.json",
+  "metadata": [
+    {
+      "src": [
+        {
+          "src": "../../src/ChohyoPdf",
+          "files": [
+            "ChohyoPdf.csproj"
+          ]
+        }
+      ],
+      "dest": "reference",
+      "properties": {
+        "TargetFramework": "net8.0"
+      },
+      "namespaceLayout": "flattened",
+      "memberLayout": "samePage",
+      "enumSortOrder": "declaringOrder"
+    }
+  ],
+  "build": {
+    "content": [
+      {
+        "files": [
+          "reference/*.yml",
+          "index.md",
+          "toc.yml"
+        ]
+      }
+    ],
+    "output": "../../_site/api",
+    "template": [
+      "default",
+      "modern"
+    ],
+    "globalMetadata": {
+      "_appName": "ChohyoPdf",
+      "_appTitle": "ChohyoPdf API リファレンス",
+      "_appFooter": "ChohyoPdf（MIT License）",
+      "_lang": "ja",
+      "_enableSearch": true,
+      "_disableContribution": true
+    }
+  },
+  "rules": {
+    "InvalidFileLink": "info"
+  }
+}

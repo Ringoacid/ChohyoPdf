@@ -7,3 +7,9 @@ output/
 # 説明書の生成時に出力する PDF（フォントのサブセットを含むため、リポジトリには入れない）
 docs/examples/output/
 __pycache__/
+_site/
+# DocFX が生成する API リファレンスのメタデータ
+docs/api/reference/
+
+# Skills の二次配布を防止
+.claude/skills

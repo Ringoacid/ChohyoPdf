@@ -1,0 +1,56 @@
+# main にプッシュするたびに、サイト（トップページ・説明書・デザイナーの説明書・API リファレンス）を作り、GitHub Pages に公開する。
+# 必要な設定: リポジトリの Settings → Pages の Source を「GitHub Actions」にする
+name: Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 公開は 1 つずつ行う。実行中の公開は取り消さない
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # API リファレンス（DocFX）で、ライブラリの net8.0 版をビルドする
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+
+      - name: Install Python packages
+        run: pip install pillow markdown-it-py pygments
+
+      # 画像はリポジトリにあるものを使う（サンプルの実行には日本語フォントが要るため）
+      - name: Build site
+        run: python docs/tools/build_docs.py --skip-run
+
+      - uses: actions/configure-pages@v6
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

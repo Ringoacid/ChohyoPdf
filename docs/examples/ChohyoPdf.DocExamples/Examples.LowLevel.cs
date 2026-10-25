@@ -91,6 +91,39 @@ namespace ChohyoPdf.DocExamples
             // #end
         }
 
+        public static void BlockBoxes()
+        {
+            // #example BlockBoxes
+            var pdf = new PdfDocument();
+            var g = pdf.AddPage(new PageSize(Unit.Mm(170), Unit.Mm(52))).Graphics;
+            var style = new TextStyle(font, 10);
+            var frame = new PdfPen(PdfColor.Gray, 0.5);
+
+            // 文字の一部だけを上付き・下付きにしたり、ルビを付けたりした段落
+            var left = new PdfRect(Unit.Mm(8), Unit.Mm(8), Unit.Mm(74), Unit.Mm(36));
+            g.DrawRectangle(frame, left.X, left.Y, left.Width, left.Height);
+            var paragraph = new Paragraph("床面積は 120 m").AddSuperscript("2").AddText("、二酸化炭素は CO").AddSubscript("2")
+                .AddText("。").AddRuby("帳票", "ちょうひょう").AddText("の文字も描けます。");
+            g.DrawBlocks(paragraph, left.Deflate(3, 3, 3, 3), style, new TextBoxOptions { LineSpacing = 1.6 });
+
+            // 箇条書き。縦の揃えや縮小は DrawTextBox と同じように指定できる
+            var right = new PdfRect(Unit.Mm(88), Unit.Mm(8), Unit.Mm(74), Unit.Mm(36));
+            g.DrawRectangle(frame, right.X, right.Y, right.Width, right.Height);
+            var list = new ListBlock { Kind = ListKind.Numbered };
+            list.AddItem("申込書に記入する");
+            list.AddItem("本人確認の書類を添える");
+            list.AddSubList(ListKind.Bullet).AddItem("運転免許証など、写真付きのもの");
+            list.AddItem("窓口に提出する");
+            g.DrawBlocks(list, right.Deflate(3, 3, 3, 3), style, new TextBoxOptions
+            {
+                VerticalAlignment = VerticalAlignment.Middle,
+                ShrinkToFit = true,
+            });
+
+            pdf.Save("block-boxes.pdf");
+            // #end
+        }
+
         public static void ShrinkToFit()
         {
             // #example ShrinkToFit

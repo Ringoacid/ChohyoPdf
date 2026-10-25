@@ -1,0 +1,69 @@
+<section class="hero">
+  <h1>ChohyoPdf</h1>
+  <p class="lead">日本語の帳票・文書を作るための、C# 製 PDF 生成ライブラリです。</p>
+  <ul class="points">
+    <li><strong>MIT ライセンス</strong>のみで提供します（デュアルライセンスではなく、GPL / AGPL でもありません）。商用利用もできます。</li>
+    <li>外部パッケージへの依存はありません。</li>
+    <li>.NET Framework 4.6.2 以降、.NET Standard 2.0、.NET 8、.NET 10 に対応しています。</li>
+    <li>禁則処理・両端揃え・均等割り付け・ルビなど、日本語の文書に必要な組版ができます。</li>
+  </ul>
+  <div class="actions">
+    <a class="button primary" href="manual.html">説明書を読む</a>
+    <a class="button" href="designer.html">GUI デザイナー</a>
+    <a class="button" href="api/">API リファレンス</a>
+  </div>
+{{install}}
+</section>
+
+<img class="shot" src="images/sample-invoice.png" alt="ChohyoPdf で作った 2 ページの請求書。明細の表が 2 ページ目に続き、見出し行が繰り返されている">
+
+<h2 id="コードの例">コードの例</h2>
+<p>段落や表を順に追加するだけで、折り返し・禁則処理・改ページはライブラリが行います。</p>
+{{quickstart}}
+<p>出力される PDF:</p>
+<img class="shot" src="images/quick-start.png" alt="上のコードで作った見積書。中央揃えの表題、宛名、4 列の表">
+<p>申込書や伝票のように決まった位置に印字する帳票は、座標を指定して文字や図形を描く API で作れます。2 つの API は組み合わせて使えます。</p>
+
+<h2 id="作例">作例</h2>
+<p>どの画像も、ChohyoPdf で出力した PDF です。押すと、作り方を説明した説明書の節を開きます。</p>
+<div class="gallery">
+  <a class="card wide" href="manual.html#92-レポート">
+    <img src="images/sample-report.png" alt="4 ページのレポート" loading="lazy">
+    <strong>レポート</strong>
+    <span>名前付きスタイル、禁則処理と両端揃え、セルを結合した表、画像、グラフ、長い表の自動改ページ</span>
+  </a>
+  <a class="card wide" href="manual.html#411-目次">
+    <img src="images/table-of-contents.png" alt="ローマ数字のページに置いた目次と、本文のページ" loading="lazy">
+    <strong>目次</strong>
+    <span>見出しから自動で作り、ページ番号も自動で確定します。前付けをローマ数字にするなど、ページ番号の書式も選べます</span>
+  </a>
+  <a class="card" href="manual.html#84-申込書の例">
+    <img src="images/form.png" alt="申込書" loading="lazy">
+    <strong>座標指定の帳票</strong>
+    <span>均等割り付け、枠に合わせた縮小</span>
+  </a>
+  <a class="card" href="manual.html#74-グラフ">
+    <img src="images/charts.png" alt="棒グラフと円グラフ" loading="lazy">
+    <strong>グラフ</strong>
+    <span>図形の描画で作る棒グラフと円グラフ</span>
+  </a>
+  <a class="card" href="manual.html#311-ルビ振り仮名">
+    <img src="images/ruby.png" alt="ルビを付けた段落" loading="lazy">
+    <strong>ルビ（振り仮名）</strong>
+    <span>グループルビとモノルビ。「｜東京《とうきょう》」の記法でも書けます</span>
+  </a>
+  <a class="card" href="manual.html#53-セルの結合">
+    <img src="images/table-merge.png" alt="見出しを 2 行にし、縦にセルを結合した集計表" loading="lazy">
+    <strong>表のセルの結合</strong>
+    <span>見出しを 2 行にし、縦にセルを結合した集計表</span>
+  </a>
+</div>
+<p>このほか、段組み・脚注・箇条書き・ヘッダーとフッター・透かし・しおり・文書内リンク・透過 PNG・写真の向き（EXIF）の反映などに対応しています。機能の一覧は<a href="manual.html">説明書</a>を見てください。PDF の読み込みと編集はできません（生成専用です）。</p>
+
+<h2 id="gui-デザイナー">GUI デザイナー</h2>
+<p>画面上で部品を並べて文書や帳票をデザインし、PDF や、同じ PDF を作る C# のコードとして出力できる Windows アプリ（ChohyoPdf Designer）もあります。宛名などをあとから入れる差し込み欄（<code>{顧客名}</code>）や、データの件数だけ行をくり返す表も作れます。</p>
+<img class="shot" src="images/designer/overview.png" alt="ChohyoPdf Designer の画面。ページの一覧、編集中のページ、表の設定が並んでいる">
+<div class="actions" style="margin-top: 1.2em">
+  <a class="button primary" href="https://github.com/Ringoacid/ChohyoPdf/releases/latest/download/ChohyoPdfDesigner-win-x64.zip">ダウンロード（Windows x64・ZIP）</a>
+  <a class="button" href="designer.html">デザイナーの説明書</a>
+</div>
