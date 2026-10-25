@@ -987,6 +987,7 @@ doc.Save("page-number-formats.pdf");
 - `FieldType.SectionPageNumber` と `SectionPageCount` もセクションの書式に従います。`FieldType.PageCount`（総ページ数）は、書式を指定しない限りアラビア数字で、開始番号の指定に関係なく物理的なページ数を表示します。
 - 開始番号に関係なく、文書全体での物理的なページの順番を表示するときは `FieldType.PhysicalPageNumber` を使います。
 - `PageBackground` / `PageForeground` の `PageContext` では、`DisplayPageNumber`、`PageNumberText`（書式を適用した文字列）、`PageNumberFormat` で表示用のページ番号を取得できます。
+- 番号を書式の文字列にするだけなら、`PageNumberFormatter.Format(4, PageNumberFormat.UpperRoman)`（→ `IV`）を使います。低レベル層（`PdfGraphics`）でページ番号を描くときも、同じ表記になります。
 
 ### 4.9 しおり（アウトライン）
 
@@ -2338,5 +2339,6 @@ PDF にフォントを埋め込んで配布してよいかは、フォントご�
 | `PdfColor` | `FromRgb()`、`FromHex()`、`FromGray()`、`FromCmyk()`、`WithAlpha()` |
 | `PdfPen` | `Color`、`Width`、`DashPattern`、`LineCap`、`LineJoin`、`Dashed()`、`Dotted()` |
 | `Unit` | `Mm()`、`Cm()`、`Inch()`、`ToMm()` |
+| `PageNumberFormatter` | `Format()`（番号を `PageNumberFormat` の書式の文字列にする） |
 
 各メンバーの詳しい説明は、ソースコードの XML ドキュメントコメントにあります。Visual Studio などの IntelliSense でも表示されます。
