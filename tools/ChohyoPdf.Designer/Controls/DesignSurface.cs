@@ -838,10 +838,15 @@ namespace ChohyoPdf.Designer.Controls
         internal void RightPointerDown(Point view, ModifierKeys modifiers)
         {
             if (_vm == null) return;
-            PrepareContextMenu(view);
+            EnsureLayout();
+            ActivatePageAt(view);
             var mm = ToMm(view);
+            // 選んである表の中ではセルを選ぶ（左ボタンと同じく、表は左上のつまみか枠線でだけ動かす）
+            bool inTable = HitElement(mm) is TableElement table && _vm.Selection.Count == 1 && _vm.PrimarySelection == table
+                && table.EditableRowCount > 0 && table.Columns.Count > 0 && !HitMoveGrip(view) && !HitTableEdge(table, view);
+            PrepareContextMenu(view);
             var hit = HitElement(mm);
-            if (hit == null || !_vm.Selection.Contains(hit)) return;
+            if (inTable || hit == null || !_vm.Selection.Contains(hit)) return;
             _startMm = _currentMm = mm;
             _dragStarted = false;
             _toggleOnRelease = null;
