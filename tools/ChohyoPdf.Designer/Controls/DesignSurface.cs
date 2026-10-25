@@ -52,6 +52,8 @@ namespace ChohyoPdf.Designer.Controls
         private Point _startMm, _currentMm;
         private bool _dragStarted;
         private bool _releasingCapture;
+        // 右ボタンで部品を押している（ドラッグすれば動かし、動かさずに離せばメニューを開く）
+        private bool _rightDrag;
         private int _handle = -1;
         private CellRange _anchorCell;
         // Shift / Ctrl ＋クリックで選択済みの部品を押した（ドラッグしないで離したら、選択から外す）
@@ -552,7 +554,7 @@ namespace ChohyoPdf.Designer.Controls
         protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)
         {
             base.OnMouseLeftButtonDown(e);
-            if (_vm == null) return;
+            if (_vm == null || _rightDrag) return;
             Focus();
             PointerDown(e.GetPosition(this), Keyboard.Modifiers, e.ClickCount);
             if (_mode != DragMode.None) CaptureMouse();
@@ -562,12 +564,14 @@ namespace ChohyoPdf.Designer.Controls
         protected override void OnMouseMove(MouseEventArgs e)
         {
             base.OnMouseMove(e);
-            PointerMove(e.GetPosition(this), Keyboard.Modifiers, e.LeftButton == MouseButtonState.Pressed);
+            var button = _rightDrag ? e.RightButton : e.LeftButton;
+            PointerMove(e.GetPosition(this), Keyboard.Modifiers, button == MouseButtonState.Pressed);
         }
 
         protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
         {
             base.OnMouseLeftButtonUp(e);
+            if (_rightDrag) return;
             // 画像を作るときはファイルを選ぶ画面を開くので、先にキャプチャを解放する
             _releasingCapture = true;
             if (IsMouseCaptured) ReleaseMouseCapture();
@@ -789,6 +793,7 @@ namespace ChohyoPdf.Designer.Controls
             }
             _mode = DragMode.None;
             _dragStarted = false;
+            _rightDrag = false;
             _toggleOnRelease = null;
             InvalidateVisual();
         }
@@ -807,26 +812,67 @@ namespace ChohyoPdf.Designer.Controls
             base.OnMouseRightButtonDown(e);
             if (_vm == null || _mode != DragMode.None) return;
             Focus();
-            PrepareContextMenu(e.GetPosition(this));
+            RightPointerDown(e.GetPosition(this), Keyboard.Modifiers);
+            if (_rightDrag) CaptureMouse();
             e.Handled = true;
         }
 
         protected override void OnMouseRightButtonUp(MouseButtonEventArgs e)
         {
             base.OnMouseRightButtonUp(e);
-            if (_vm == null || _mode != DragMode.None) return;
-            EnsureLayout();
-            var mm = ToMm(e.GetPosition(this));
-            ContextMenuRequested?.Invoke(mm, HitElement(mm));
+            if (_vm == null) return;
+            if (_rightDrag)
+            {
+                _releasingCapture = true;
+                if (IsMouseCaptured) ReleaseMouseCapture();
+                _releasingCapture = false;
+            }
+            else if (_mode != DragMode.None) return;
+            RightPointerUp(e.GetPosition(this), Keyboard.Modifiers);
             e.Handled = true;
+        }
+
+        /// <summary>
+        /// 右ボタンを押した。押した所のものを選び（<see cref="PrepareContextMenu"/>）、選んでいる部品の上なら、ドラッグで動かせるようにする。
+        /// </summary>
+        internal void RightPointerDown(Point view, ModifierKeys modifiers)
+        {
+            if (_vm == null) return;
+            PrepareContextMenu(view);
+            var mm = ToMm(view);
+            var hit = HitElement(mm);
+            if (hit == null || !_vm.Selection.Contains(hit)) return;
+            _startMm = _currentMm = mm;
+            _dragStarted = false;
+            _toggleOnRelease = null;
+            _mode = DragMode.Moving;
+            _rightDrag = true;
+            RememberOriginals(_vm.Selection);
+            _vm.BeginInteraction();
+            _vm.BeginMovePreview(_vm.Selection.ToList(), false);
+        }
+
+        /// <summary>右ボタンを離した。ドラッグしていたら動かし終え、動かしていなければメニューを開く。</summary>
+        internal void RightPointerUp(Point view, ModifierKeys modifiers)
+        {
+            if (_vm == null) return;
+            bool dragged = _rightDrag && _dragStarted;
+            if (_rightDrag)
+            {
+                _rightDrag = false;
+                PointerUp(modifiers);
+            }
+            if (dragged) return;
+            EnsureLayout();
+            var mm = ToMm(view);
+            ContextMenuRequested?.Invoke(mm, HitElement(mm));
         }
 
         /// <summary>右クリックと同じ処理（選び直してからメニューを開く。動作確認用）。</summary>
         internal void OpenContextMenu(Point view)
         {
-            PrepareContextMenu(view);
-            var mm = ToMm(view);
-            ContextMenuRequested?.Invoke(mm, HitElement(mm));
+            RightPointerDown(view, ModifierKeys.None);
+            RightPointerUp(view, ModifierKeys.None);
         }
 
         /// <summary>
