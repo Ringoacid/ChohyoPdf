@@ -75,6 +75,8 @@ namespace ChohyoPdf.Designer.Controls
             _style = () => (t.Bold, t.Italic);
             var box = CreateBox(t.FontName, t.FontSize, t.Bold, t.Italic, t.Alignment, t.VerticalAlignment, t.Padding, t.Wrap);
             if (t.Underline) box.TextDecorations = TextDecorations.Underline;
+            // 箇条書きなら、行の左に記号や番号を表示する
+            ListMarkerDisplay.SetElement(box, t);
             Show(box);
         }
 

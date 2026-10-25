@@ -64,5 +64,29 @@ namespace ChohyoPdf.Designer.Tests
             Assert.Equal(ListNumberStyle.Kanji, loaded.NumberStyle);
             Assert.Equal("●", loaded.Bullet);
         }
+
+        private static string Markers(TextElement e) => string.Join("|", ListMarkers.For(e).Select(m => m.Depth + ":" + m.Text));
+
+        [Fact]
+        public void ListMarkers_FollowListBlockRules()
+        {
+            // 入れ子の項目は深さごとの既定の記号。空の行も項目。深すぎるタブは 1 つ深いものとして扱う
+            var bullets = new TextElement { ListStyle = TextListStyle.Bullet, Bullet = "◆", Text = "a\n\tb\n\t\t\t\tc\n\nd" };
+            Assert.Equal("0:◆|1:○|2:■|0:◆|0:◆", Markers(bullets));
+
+            // 番号は子リストごとに 1 から数え、浅い項目に戻ったらその深さの続きの番号
+            var numbers = new TextElement { ListStyle = TextListStyle.Numbered, Text = "a\n\tb\n\tc\n\t\td\ne\n\tf" };
+            Assert.Equal("0:1.|1:(1)|1:(2)|2:①|0:2.|1:(1)", Markers(numbers));
+
+            // 番号の形を指定するのは、いちばん外側だけ
+            numbers.NumberStyle = ListNumberStyle.KanjiParenthesized;
+            Assert.Equal("0:（一）|1:(1)|1:(2)|2:①|0:（二）|1:(1)", Markers(numbers));
+            numbers.NumberStyle = ListNumberStyle.Circled;
+            Assert.StartsWith("0:①|", Markers(numbers));
+            numbers.NumberStyle = ListNumberStyle.UpperRoman;
+            Assert.StartsWith("0:I.|", Markers(numbers));
+
+            Assert.Empty(ListMarkers.For(new TextElement { Text = "a\nb" }));
+        }
     }
 }

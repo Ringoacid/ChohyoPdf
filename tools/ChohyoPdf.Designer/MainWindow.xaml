@@ -770,6 +770,7 @@
                 <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource CommonHeader}" />
                 <TextBlock Text="文字" Style="{StaticResource SectionHeader}" />
                 <TextBox x:Name="TextEditor" Tag="TextEditor" Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" AcceptsTab="True" TextWrapping="Wrap"
+                         c:ListMarkerDisplay.Element="{Binding}"
                          MinHeight="72" MaxHeight="220" VerticalContentAlignment="Top" VerticalScrollBarVisibility="Auto"
                          ToolTip="用紙の上でダブルクリックしても編集できます。{名前} と書いた所には、差し込み項目の値が入ります" />
                 <ComboBox Margin="0,6,0,0" ItemsSource="{Binding DataContext.InsertableNames, RelativeSource={RelativeSource AncestorType=Window}}"

@@ -120,7 +120,7 @@ namespace ChohyoPdf.Designer.Rendering
         }
 
         /// <summary>番号の形の、ListBlock の NumberFormat・Prefix・Suffix（null は既定のまま）。</summary>
-        private static (PageNumberFormat? Format, string? Prefix, string? Suffix) NumberFormat(ListNumberStyle style) => style switch
+        internal static (PageNumberFormat? Format, string? Prefix, string? Suffix) NumberFormat(ListNumberStyle style) => style switch
         {
             ListNumberStyle.ArabicParenthesis => (PageNumberFormat.Arabic, null, ")"),
             ListNumberStyle.Parenthesized => (PageNumberFormat.Arabic, "(", ")"),
