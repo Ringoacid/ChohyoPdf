@@ -1,3 +1,6 @@
+---
+redirect_url: reference/ChohyoPdf.html
+---
 # API リファレンス
 
-ChohyoPdf の公開クラスとメンバーの一覧です。左の一覧から型を選んでください。
+ChohyoPdf の公開クラスとメンバーの一覧は、[ChohyoPdf 名前空間](reference/ChohyoPdf.html)のページにあります。
