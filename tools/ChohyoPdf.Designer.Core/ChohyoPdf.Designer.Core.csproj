@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <!-- CI の .NET 10 SDK でもビルドできるよう、言語バージョンを固定する -->
+    <LangVersion>14</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <RootNamespace>ChohyoPdf.Designer</RootNamespace>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\ChohyoPdf\ChohyoPdf.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 差し込み項目の C# の式を、デザイナーの中でコンパイルして計算する -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="ChohyoPdf.Designer.Tests" />
+  </ItemGroup>
+
+</Project>

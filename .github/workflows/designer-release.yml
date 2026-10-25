@@ -1,0 +1,48 @@
+# designer-v1.2.3 のようなタグをプッシュすると、デザイナーをテストしてから ZIP にし、GitHub の Releases に公開する。
+# ライブラリの公開（release.yml、v1.2.3 のタグ）とは別に動く。
+name: Designer release
+
+on:
+  push:
+    tags: ['designer-v*']
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    permissions:
+      contents: write   # Releases の作成に使う
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Test
+        run: dotnet test tests/ChohyoPdf.Designer.Tests -c Release
+
+      # タグ名（designer-v1.2.3）からバージョン（1.2.3）を取り出す
+      - name: Version
+        shell: bash
+        run: echo "VERSION=${GITHUB_REF_NAME#designer-v}" >> "$GITHUB_ENV"
+
+      # .NET を含めた自己完結の版。C# の式の計算が DLL のファイルを使うので、単一の実行ファイルにはしない
+      - name: Publish
+        run: dotnet publish tools/ChohyoPdf.Designer -c Release -r win-x64 --self-contained -o artifacts/ChohyoPdfDesigner
+
+      # 展開すると ChohyoPdfDesigner フォルダができるようにする
+      - name: Zip
+        shell: pwsh
+        run: Compress-Archive -Path artifacts/ChohyoPdfDesigner -DestinationPath artifacts/ChohyoPdfDesigner-win-x64.zip
+
+      # ファイル名にバージョンを入れないので、説明書から releases/latest/download/ChohyoPdfDesigner-win-x64.zip で最新版を指せる。
+      # 1.2.3-preview.1 のように - を含むバージョンはプレリリースにする（latest には含まれない）
+      - name: Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [[ "$VERSION" == *-* ]]; then kind=--prerelease; else kind=--latest; fi
+          gh release create "$GITHUB_REF_NAME" artifacts/ChohyoPdfDesigner-win-x64.zip $kind \
+            --title "ChohyoPdf Designer $VERSION" \
+            --notes "Windows（x64）用の ChohyoPdf Designer です。ZIP を展開して ChohyoPdfDesigner.exe を起動してください。使い方は https://ringoacid.github.io/ChohyoPdf/designer.html にあります。"

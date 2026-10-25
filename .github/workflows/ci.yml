@@ -25,6 +25,10 @@ jobs:
       - name: Test
         run: dotnet test tests/ChohyoPdf.Tests -c Release --no-build
 
+      # デザイナー（tools/ChohyoPdf.Designer）のテスト。生成した C# コードの PDF が、デザイナーの出力と一致することも確かめる
+      - name: Test (Designer)
+        run: dotnet test tests/ChohyoPdf.Designer.Tests -c Release --no-build
+
       # netstandard2.0 版のライブラリを、net8.0 のテストから使って確認する
       - name: Test (netstandard2.0)
         run: dotnet test tests/ChohyoPdf.Tests -c Release -f net8.0 -p:LibraryTargetFramework=netstandard2.0

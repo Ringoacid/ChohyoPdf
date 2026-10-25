@@ -1,0 +1,38 @@
+<Window x:Class="ChohyoPdf.Designer.CodeWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="C# コードを出力" Width="1000" Height="820" WindowStartupLocation="CenterOwner"
+        Background="{StaticResource PanelBackground}">
+    <DockPanel Margin="12">
+        <Grid DockPanel.Dock="Top" Margin="0,0,0,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="220" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="200" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="名前空間" VerticalAlignment="Center" Margin="0,0,6,0" />
+            <TextBox Grid.Column="1" x:Name="NamespaceBox" Text="MyApp.Reports" TextChanged="Option_Changed" />
+            <TextBlock Grid.Column="2" Text="クラスの名前" VerticalAlignment="Center" Margin="16,0,6,0" />
+            <TextBox Grid.Column="3" x:Name="ClassNameBox" TextChanged="Option_Changed" ToolTip="空欄なら「文書の名前 ＋ Report」" />
+            <CheckBox Grid.Column="4" x:Name="SampleBox" Content="確認用の値でデータを作るメソッド（CreateSample）を含める" IsChecked="True" Margin="16,0,0,0"
+                      Checked="Option_Changed" Unchecked="Option_Changed" />
+        </Grid>
+        <TextBlock DockPanel.Dock="Top" Style="{StaticResource Hint}" Margin="0,0,0,8"
+                   Text="出力するコードは ChohyoPdf だけを使います（NuGet の ChohyoPdf パッケージを参照してください）。デザイナーの「PDF を出力」と同じ PDF ができます。" />
+        <Border DockPanel.Dock="Top" Background="White" BorderBrush="{StaticResource PanelBorder}" BorderThickness="1" Padding="8" Margin="0,0,0,8">
+            <StackPanel>
+                <TextBlock Text="使い方" FontWeight="SemiBold" Margin="0,0,0,4" />
+                <TextBox x:Name="UsageBox" IsReadOnly="True" BorderThickness="0" FontFamily="Consolas, Yu Gothic UI" FontSize="12.5" TextWrapping="NoWrap" />
+            </StackPanel>
+        </Border>
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
+            <Button Content="クリップボードにコピー" Margin="0,0,6,0" Click="Copy_Click" />
+            <Button Content="ファイルに保存…" Margin="0,0,6,0" Click="Save_Click" />
+            <Button Content="閉じる" IsCancel="True" Click="Close_Click" />
+        </StackPanel>
+        <TextBox x:Name="CodeBox" IsReadOnly="True" FontFamily="Consolas, Yu Gothic UI" FontSize="12.5" AcceptsReturn="True"
+                 HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" TextWrapping="NoWrap" VerticalContentAlignment="Top" />
+    </DockPanel>
+</Window>
