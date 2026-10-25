@@ -1515,7 +1515,7 @@
                                 <StackPanel Visibility="{Binding SelectionSummary, Converter={StaticResource NullToCollapsed}}" Margin="0,8,0,0">
                                     <TextBlock Style="{StaticResource Hint}" Text="位置を揃えるには、上の書式バーのボタンを使います。1 つだけ選ぶと、ここに詳しい設定が出ます。" />
                                 </StackPanel>
-                                <ContentControl x:Name="PropertyHost" Content="{Binding PrimarySelection}" Focusable="False" />
+                                <ContentControl x:Name="PropertyHost" Content="{Binding PanelTarget}" Focusable="False" />
                             </StackPanel>
                         </ScrollViewer>
                     </DockPanel>

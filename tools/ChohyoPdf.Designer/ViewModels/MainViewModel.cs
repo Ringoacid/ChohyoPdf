@@ -154,10 +154,11 @@ namespace ChohyoPdf.Designer.ViewModels
         /// <summary>動かす部品の画像。大きさを変えている間は描き直す。</summary>
         private sealed class MovingImages
         {
-            public MovingImages(BitmapSource? decoration, BitmapSource content, ReportElement rendered, double? imageAspect)
+            public MovingImages(BitmapSource? decoration, BitmapSource content, ModelRect? area, ReportElement rendered, double? imageAspect)
             {
                 Decoration = decoration;
                 Content = content;
+                Area = area;
                 Rendered = rendered;
                 ImageAspect = imageAspect;
             }
@@ -165,6 +166,11 @@ namespace ChohyoPdf.Designer.ViewModels
             /// <summary>枠線・背景（テキストか表を 1 つだけ動かすとき。それ以外は null で、<see cref="Content"/> に全体を描く）。</summary>
             public BitmapSource? Decoration { get; }
             public BitmapSource Content { get; }
+            /// <summary>
+            /// 画像に描いた、用紙の上の範囲（mm）。null なら用紙全体。画像が大きいと描くのにも表示するのにも時間がかかるので、
+            /// 部品のまわりだけを描く（<see cref="MovePreviewGeometry.DrawnArea"/>）。
+            /// </summary>
+            public ModelRect? Area { get; }
             /// <summary>画像を描いたときの基準の部品（複製）。今の部品との違いから、画像の移し方を決める（<see cref="MovePreviewGeometry"/>）。</summary>
             public ReportElement Rendered { get; }
             /// <summary>画像の部品の縦横比（分からなければ null）。</summary>
@@ -746,6 +752,7 @@ namespace ChohyoPdf.Designer.ViewModels
             private readonly bool _common;
             private readonly DesignLayer _layer;
             private readonly int _width;
+            private readonly (double Width, double Height) _pageSize;
             private readonly bool _scripts;
             private readonly Func<bool> _obsolete;
             private ReportData? _data;
@@ -765,6 +772,7 @@ namespace ChohyoPdf.Designer.ViewModels
                 _baseDirectory = vm.BaseDirectory;
                 _layer = _common ? DesignLayer.Common : DesignLayer.Page;
                 _width = vm.PixelWidth(vm.CurrentPageKey);
+                _pageSize = vm.PageSizeOf(vm.CurrentPageKey);
                 _scripts = vm._scriptsTrusted;
             }
 
@@ -813,18 +821,34 @@ namespace ChohyoPdf.Designer.ViewModels
             public async Task<MovingImages?> RenderMovingAsync(IReadOnlyList<int> indexes, double? imageAspect)
             {
                 var reference = Elements[indexes[0]];
+                var moving = new HashSet<ReportElement>(indexes.Select(i => Elements[i]));
+                var (area, pixels) = PixelArea(MovePreviewGeometry.DrawnArea(moving, _pageSize.Width, _pageSize.Height));
                 if (indexes.Count == 1 && (reference is TextElement || reference is TableElement))
                 {
                     var (decorationReport, decoration) = Variant(indexes[0], RemoveText);
                     var (contentReport, content) = Variant(indexes[0], RemoveDecoration);
-                    var d = RenderAsync(decorationReport, e => e == decoration, true);
-                    var c = RenderAsync(contentReport, e => e == content, true);
+                    var d = RenderAsync(decorationReport, e => e == decoration, true, pixels);
+                    var c = RenderAsync(contentReport, e => e == content, true, pixels);
                     await Task.WhenAll(d, c);
-                    return d.Result == null || c.Result == null ? null : new MovingImages(d.Result, c.Result, reference, imageAspect);
+                    return d.Result == null || c.Result == null ? null : new MovingImages(d.Result, c.Result, area, reference, imageAspect);
                 }
-                var moving = new HashSet<ReportElement>(indexes.Select(i => Elements[i]));
-                var image = await RenderAsync(_clone, moving.Contains, true);
-                return image == null ? null : new MovingImages(null, image, reference, imageAspect);
+                var image = await RenderAsync(_clone, moving.Contains, true, pixels);
+                return image == null ? null : new MovingImages(null, image, area, reference, imageAspect);
+            }
+
+            /// <summary>
+            /// 用紙の上の範囲 area（mm）を、ページ全体の画像のピクセルの境目に合わせて広げたものと、そのピクセルの範囲。
+            /// area が null（部品が用紙の外にある）なら、用紙全体（どちらも null）。
+            /// </summary>
+            private (ModelRect? Area, Int32Rect? Pixels) PixelArea(ModelRect? area)
+            {
+                if (area is not ModelRect a || _pageSize.Width <= 0) return (null, null);
+                double perMm = _width / _pageSize.Width;
+                int height = (int)Math.Ceiling(_pageSize.Height * perMm);
+                int x0 = Math.Max(0, (int)Math.Floor(a.X * perMm)), y0 = Math.Max(0, (int)Math.Floor(a.Y * perMm));
+                int x1 = Math.Min(_width, (int)Math.Ceiling(a.Right * perMm)), y1 = Math.Min(height, (int)Math.Ceiling(a.Bottom * perMm));
+                if (x1 <= x0 || y1 <= y0) return (null, null);
+                return (new ModelRect(x0 / perMm, y0 / perMm, (x1 - x0) / perMm, (y1 - y0) / perMm), new Int32Rect(x0, y0, x1 - x0, y1 - y0));
             }
 
             /// <summary>デザインをもう 1 つ複製して、index の部品を change で変えたもの。</summary>
@@ -881,10 +905,14 @@ namespace ChohyoPdf.Designer.ViewModels
                 }
             }
 
-            /// <summary>include を満たす部品だけを描いた画像。overlay なら背景を透明にする（<see cref="ReportRenderer.RenderLayer"/>）。</summary>
-            private async Task<BitmapSource?> RenderAsync(ReportDefinition report, Func<ReportElement, bool> include, bool overlay)
+            /// <summary>
+            /// include を満たす部品だけを描いた画像。overlay なら背景を透明にする（<see cref="ReportRenderer.RenderLayer"/>）。
+            /// pixels を指定すると、ページ全体の画像のその範囲（ピクセル）だけを描く。
+            /// </summary>
+            private async Task<BitmapSource?> RenderAsync(ReportDefinition report, Func<ReportElement, bool> include, bool overlay, Int32Rect? pixels = null)
             {
                 byte[] pdf = ReportRenderer.RenderLayer(report, _mode, _data, _baseDirectory, _pageIndex, _layer, include, overlay).ToArray();
+                if (pixels is Int32Rect area) return await PdfRasterizer.RenderAreaAsync(pdf, _width, area, overlay);
                 return (await PdfRasterizer.RenderAsync(pdf, _width, 1, overlay)).FirstOrDefault();
             }
         }
@@ -908,9 +936,9 @@ namespace ChohyoPdf.Designer.ViewModels
 
         /// <summary>
         /// 部品を動かしている間の表示（key のページを描くとき）。background の上に parts の画像を順に重ね、その上に foreground（手前の部品。なければ null）を重ねる。
-        /// parts の画像は、用紙の上の位置（mm）を Part.Map で移して描き、Part.Clip（mm）の外は描かない。
+        /// parts の画像は用紙の上の範囲 Area（mm。null なら用紙全体）を描いたもので、それを Part.Map で移して描き、Part.Clip（mm）の外は描かない。
         /// </summary>
-        public bool TryGetMovePreview(int key, out BitmapSource background, out BitmapSource? foreground, out List<(BitmapSource Image, PreviewPart Part)> parts)
+        public bool TryGetMovePreview(int key, out BitmapSource background, out BitmapSource? foreground, out List<(BitmapSource Image, ModelRect? Area, PreviewPart Part)> parts)
         {
             var preview = _movePreview;
             if (preview == null || preview.Key != key || preview.Background == null || preview.Moving == null)
@@ -923,19 +951,19 @@ namespace ChohyoPdf.Designer.ViewModels
             background = preview.Background;
             foreground = preview.Foreground;
             var moving = preview.Moving;
-            parts = new List<(BitmapSource, PreviewPart)>();
+            parts = new List<(BitmapSource, ModelRect?, PreviewPart)>();
             if (preview.Indexes.Count > 1)
             {
                 // いくつかの部品をまとめて動かすときは、ずらすだけ（大きさは変えられない）
                 var from = moving.Rendered.Bounds;
                 var to = preview.Reference.Bounds;
-                parts.Add((moving.Content, new PreviewPart(PreviewLayer.Content, PreviewMap.Translate(to.X - from.X, to.Y - from.Y))));
+                parts.Add((moving.Content, moving.Area, new PreviewPart(PreviewLayer.Content, PreviewMap.Translate(to.X - from.X, to.Y - from.Y))));
                 return true;
             }
             foreach (var part in MovePreviewGeometry.Parts(moving.Rendered, preview.Reference, moving.ImageAspect))
             {
                 var image = part.Layer == PreviewLayer.Decoration ? moving.Decoration : moving.Content;
-                if (image != null) parts.Add((image, part));
+                if (image != null) parts.Add((image, moving.Area, part));
             }
             return true;
         }
@@ -1092,8 +1120,43 @@ namespace ChohyoPdf.Designer.ViewModels
 
         public ObservableCollection<ReportElement> Selection { get; } = new ObservableCollection<ReportElement>();
 
-        /// <summary>プロパティ欄に表示する部品（1 つだけ選んでいるとき）。</summary>
-        public ReportElement? PrimarySelection { get => _primary; private set => Set(ref _primary, value); }
+        /// <summary>1 つだけ選んでいる部品（2 つ以上選んでいれば null）。</summary>
+        public ReportElement? PrimarySelection
+        {
+            get => _primary;
+            private set
+            {
+                if (Set(ref _primary, value)) OnPropertyChanged(nameof(PanelTarget));
+            }
+        }
+
+        // 部品をドラッグしている間にプロパティ欄に表示する、動かす前の部品の複製
+        private ReportElement? _heldPanelTarget;
+
+        /// <summary>
+        /// プロパティ欄に表示する部品。ふだんは <see cref="PrimarySelection"/> で、部品をドラッグしている間は動かす前の複製
+        /// （<see cref="HoldPropertyPanel"/>）。
+        /// </summary>
+        public ReportElement? PanelTarget => _heldPanelTarget ?? PrimarySelection;
+
+        /// <summary>
+        /// ドラッグを終えるまで（<see cref="ReleasePropertyPanel"/>）、プロパティ欄の値を動かす前のままにする。
+        /// 欄の入力欄の文字を書き換えるたびに日本語入力（IME）の処理が呼ばれ、ときどき数十ミリ秒止まって、ドラッグがカクつくため。
+        /// </summary>
+        public void HoldPropertyPanel()
+        {
+            if (_heldPanelTarget != null || PrimarySelection == null) return;
+            _heldPanelTarget = ReportSerializer.CloneElement(PrimarySelection);
+            OnPropertyChanged(nameof(PanelTarget));
+        }
+
+        /// <summary>プロパティ欄に、今の部品の値を表示する（<see cref="HoldPropertyPanel"/> をやめる）。</summary>
+        public void ReleasePropertyPanel()
+        {
+            if (_heldPanelTarget == null) return;
+            _heldPanelTarget = null;
+            OnPropertyChanged(nameof(PanelTarget));
+        }
 
         public string SelectionSummary => Selection.Count > 1 ? Selection.Count + " 個を選択" : "";
 

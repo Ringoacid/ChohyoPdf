@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using ChohyoPdf.Designer.Model;
 
 namespace ChohyoPdf.Designer.Rendering
@@ -164,6 +165,54 @@ namespace ChohyoPdf.Designer.Rendering
 
         private static void AddCell(List<PreviewPart> parts, Rect from, Rect to, double padA, double padB, TextAlignment alignment, VerticalAlignment vertical)
             => parts.Add(new PreviewPart(PreviewLayer.Content, Anchored(Inset(from, padA), Inset(to, padB), alignment, vertical), to));
+
+        /// <summary>
+        /// 部品を描くと絵が出るかもしれない範囲（mm。幅 pageWidth、高さ pageHeight の用紙の中に限る）。動かす部品の画像は、この範囲だけを描く。
+        /// 線の太さや、枠に収まらない 1 行目の文字の分だけ広げ、折り返さない文字は用紙の左右の端まで広げる。用紙の外にしかなければ null。
+        /// </summary>
+        public static Rect? DrawnArea(IEnumerable<ReportElement> elements, double pageWidth, double pageHeight)
+        {
+            double left = double.MaxValue, top = double.MaxValue, right = double.MinValue, bottom = double.MinValue;
+            foreach (var e in elements)
+            {
+                var b = e.Bounds;
+                // 線の太さ（ポイント）と、文字の大きさ（ポイント。行が枠からはみ出す分）
+                double stroke = 0, font = 0;
+                bool wide = false;
+                switch (e)
+                {
+                    case LineElement line: stroke = line.StrokeWidth; break;
+                    case ShapeElement shape: stroke = shape.StrokeWidth; break;
+                    case TextElement text:
+                        stroke = text.BorderWidth;
+                        font = text.FontSize * Math.Max(1, text.LineSpacing);
+                        wide = !text.Wrap;
+                        break;
+                    case TableElement table:
+                        stroke = table.BorderWidth;
+                        font = table.FontSize;
+                        foreach (var row in table.Rows.Append(table.DetailRow))
+                        {
+                            foreach (var cell in row.Cells) font = Math.Max(font, cell.FontSize ?? 0);
+                        }
+                        font *= 1.5;
+                        wide = !table.Wrap;
+                        break;
+                }
+                double mx = 1 + Math.Max(0, stroke) * 25.4 / 72;
+                double my = mx + Math.Max(0, font) * 25.4 / 72;
+                left = Math.Min(left, wide ? 0 : b.X - mx);
+                right = Math.Max(right, wide ? pageWidth : b.Right + mx);
+                top = Math.Min(top, b.Y - my);
+                bottom = Math.Max(bottom, b.Bottom + my);
+            }
+            left = Math.Max(0, left);
+            top = Math.Max(0, top);
+            right = Math.Min(pageWidth, right);
+            bottom = Math.Min(pageHeight, bottom);
+            if (right <= left || bottom <= top) return null;
+            return new Rect(left, top, right - left, bottom - top);
+        }
 
         private static Rect Inset(Rect r, double d) => new Rect(r.X + d, r.Y + d, Math.Max(0, r.Width - d * 2), Math.Max(0, r.Height - d * 2));
 

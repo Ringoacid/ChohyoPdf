@@ -101,5 +101,29 @@ namespace ChohyoPdf.Designer.Tests
             Assert.Equal(30, map.MapX(10), 6);
             Assert.Equal(5, map.MapY(0), 6);
         }
+
+        [Fact]
+        public void DrawnArea_CoversStrokeAndOverflowingText()
+        {
+            // 太さ 7.2 pt（2.54 mm）の線の図形は、線の太さ + 1 mm だけ広げる
+            var shape = new RectangleElement { X = 50, Y = 50, Width = 20, Height = 10, StrokeWidth = 7.2 };
+            var area = MovePreviewGeometry.DrawnArea(new[] { shape }, 210, 297)!.Value;
+            Assert.Equal(50 - 3.54, area.X, 6);
+            Assert.Equal(70 + 3.54, area.Right, 6);
+
+            // 文字は、枠に収まらない 1 行分だけ上下に広げる。折り返さなければ用紙の左右の端まで広げる
+            var text = new TextElement { X = 50, Y = 50, Width = 20, Height = 2, FontSize = 72, LineSpacing = 1, BorderWidth = 0, Wrap = false };
+            area = MovePreviewGeometry.DrawnArea(new[] { text }, 210, 297)!.Value;
+            Assert.Equal(0, area.X);
+            Assert.Equal(210, area.Right);
+            Assert.Equal(52 + 1 + 25.4, area.Bottom, 6);
+
+            // 用紙の外は含めない。用紙の外にしかなければ null
+            var edge = new RectangleElement { X = -10, Y = 290, Width = 30, Height = 20 };
+            area = MovePreviewGeometry.DrawnArea(new[] { edge }, 210, 297)!.Value;
+            Assert.Equal(0, area.X);
+            Assert.Equal(297, area.Bottom);
+            Assert.Null(MovePreviewGeometry.DrawnArea(new[] { new RectangleElement { X = 300, Y = 0, Width = 10, Height = 10 } }, 210, 297));
+        }
     }
 }

@@ -284,7 +284,7 @@ namespace ChohyoPdf.Designer.Controls
                     // 部品を動かしている間は、動かす部品の画像をずらしたり伸び縮みさせたりして重ねる（ページの外と、指定の範囲の外は描かない）。
                     // 用紙の上の位置 p（mm）を p × scale + offset に移す変換を、このコントロール上の位置に直して使う
                     dc.DrawImage(background, rect);
-                    foreach (var (image, part) in parts)
+                    foreach (var (image, area, part) in parts)
                     {
                         var clip = rect;
                         if (part.Clip is ModelRect partClip) clip.Intersect(ToView(partClip));
@@ -293,7 +293,7 @@ namespace ChohyoPdf.Designer.Controls
                         dc.PushClip(new RectangleGeometry(clip));
                         dc.PushTransform(new MatrixTransform(map.ScaleX, 0, 0, map.ScaleY,
                             rect.X * (1 - map.ScaleX) + map.OffsetX * Scale, rect.Y * (1 - map.ScaleY) + map.OffsetY * Scale));
-                        dc.DrawImage(image, rect);
+                        dc.DrawImage(image, area is ModelRect a ? ToView(a) : rect);
                         dc.Pop();
                         dc.Pop();
                     }
@@ -689,6 +689,8 @@ namespace ChohyoPdf.Designer.Controls
             if (!_dragStarted && (Math.Abs(mm.X - _startMm.X) * Scale > 3 || Math.Abs(mm.Y - _startMm.Y) * Scale > 3))
             {
                 _dragStarted = true;
+                // ドラッグを終えるまで、プロパティ欄の値は書き換えない（書き換えるたびに日本語入力の処理で止まることがある）
+                if (_mode == DragMode.Moving || _mode == DragMode.Resizing) _vm.HoldPropertyPanel();
                 // Ctrl を押しながら動かし始めたら、元の位置に部品を残して、コピーのほうを動かす
                 if (_mode == DragMode.Moving && (modifiers & ModifierKeys.Control) != 0)
                 {
@@ -724,7 +726,18 @@ namespace ChohyoPdf.Designer.Controls
                     }
                     break;
             }
+            // ドラッグしている間はプロパティ欄の値を書き換えないので、部品の位置と大きさはステータスバーに出す
+            if ((_mode == DragMode.Moving || _mode == DragMode.Resizing) && _vm.PrimarySelection is ReportElement primary)
+                _vm.CursorText = BoundsText(primary);
             InvalidateVisual();
+        }
+
+        private static string BoundsText(ReportElement element)
+        {
+            if (element is LineElement line)
+                return string.Format(CultureInfo.InvariantCulture, "始点 {0:0.0}, {1:0.0} mm　終点 {2:0.0}, {3:0.0} mm", line.X1, line.Y1, line.X2, line.Y2);
+            var b = element.Bounds;
+            return string.Format(CultureInfo.InvariantCulture, "X {0:0.0} mm, Y {1:0.0} mm　幅 {2:0.0} mm, 高さ {3:0.0} mm", b.X, b.Y, b.Width, b.Height);
         }
 
         /// <summary>ボタンを離した。</summary>
@@ -755,6 +768,7 @@ namespace ChohyoPdf.Designer.Controls
                     if (_toggleOnRelease != null) _vm.Select(_toggleOnRelease, true);
                     _vm.EndInteraction();
                     _vm.EndMovePreview();
+                    _vm.ReleasePropertyPanel();
                     break;
             }
             _toggleOnRelease = null;
@@ -771,6 +785,7 @@ namespace ChohyoPdf.Designer.Controls
             {
                 _vm?.EndInteraction();
                 _vm?.EndMovePreview();
+                _vm?.ReleasePropertyPanel();
             }
             _mode = DragMode.None;
             _dragStarted = false;
