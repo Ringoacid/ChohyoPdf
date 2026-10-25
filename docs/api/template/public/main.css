@@ -1,0 +1,185 @@
+/*
+ * API リファレンス（DocFX の modern テンプレート）を、サイトのほかのページ（docs/tools/site/page.html）と同じ見た目にする。
+ * 色・フォント・上部のバー・左の目次の見た目は page.html に合わせているので、あちらを変えたらこちらも合わせる。
+ */
+
+/* ---- 色（page.html の :root と同じ値） ---- */
+:root, [data-bs-theme=light] {
+  --site-bg: #ffffff;
+  --site-fg: #1f2328;
+  --site-muted: #59636e;
+  --site-border: #d1d9e0;
+  --site-sidebar-bg: #f6f8fa;
+  --site-accent: #0969da;
+  --site-accent-rgb: 9, 105, 218;
+  --site-accent-bg: #ddf4ff;
+  --site-hover-bg: rgba(129, 139, 152, 0.15);
+  --site-code-bg: #f6f8fa;
+}
+[data-bs-theme=dark] {
+  --site-bg: #0d1117;
+  --site-fg: #e6edf3;
+  --site-muted: #9198a1;
+  --site-border: #30363d;
+  --site-sidebar-bg: #151b23;
+  --site-accent: #4493f8;
+  --site-accent-rgb: 68, 147, 248;
+  --site-accent-bg: rgba(56, 139, 253, 0.15);
+  --site-hover-bg: rgba(101, 108, 118, 0.3);
+  --site-code-bg: #151b23;
+}
+:root, [data-bs-theme=light], [data-bs-theme=dark] {
+  --site-topbar-h: 52px;
+  --site-sidebar-w: 300px;
+  --bs-body-bg: var(--site-bg);
+  --bs-body-color: var(--site-fg);
+  --bs-emphasis-color: var(--site-fg);
+  --bs-secondary-color: var(--site-muted);
+  --bs-tertiary-color: var(--site-muted);
+  --bs-border-color: var(--site-border);
+  --bs-secondary-bg: var(--site-sidebar-bg);
+  --bs-tertiary-bg: var(--site-sidebar-bg);
+  --bs-link-color: var(--site-accent);
+  --bs-link-hover-color: var(--site-accent);
+  --bs-link-color-rgb: var(--site-accent-rgb);
+  --bs-link-hover-color-rgb: var(--site-accent-rgb);
+  --bs-code-color: var(--site-fg);
+  --bs-body-font-family: system-ui, -apple-system, "Segoe UI", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", Meiryo, sans-serif;
+  --bs-body-font-size: 16px;
+  --bs-body-line-height: 1.8;
+  --bs-font-monospace: "Cascadia Mono", Consolas, "SFMono-Regular", Menlo, "BIZ UDGothic", "MS Gothic", monospace;
+}
+
+a { text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* ---- 上部のバー ---- */
+body > header { background: var(--site-bg) !important; }
+@media (min-width: 768px) {
+  body > header { height: var(--site-topbar-h); }
+}
+#autocollapse { padding: 0; }
+#autocollapse > .container-xxl { max-width: none; padding: 0 20px; gap: 12px; }
+.navbar-brand {
+  gap: 8px; margin: 0; padding: 0;
+  font-weight: 700; font-size: 17px; color: var(--site-fg) !important;
+}
+.navbar-brand:hover { text-decoration: none; }
+#logo { display: none; }
+.navbar #navbar { justify-content: flex-start; align-items: center; gap: 12px; margin-left: 12px; }
+.navbar #navbar .navbar-nav { flex-direction: row; gap: 2px; }
+.navbar #navbar .nav-link {
+  padding: 6px 10px; border-radius: 6px;
+  color: var(--site-muted); font-size: 14px; line-height: 1.8; white-space: nowrap;
+}
+.navbar #navbar .nav-link:hover { background: var(--site-hover-bg); color: var(--site-fg); text-decoration: none; }
+.navbar #navbar .nav-link.active { color: var(--site-fg); font-weight: 600; background: var(--site-hover-bg); }
+/* 検索欄を右寄せにし、その右に NuGet と GitHub を置く。テーマの切り替え（ほかのページにはない）は出さない */
+.navbar #navbar form.search { order: 30; margin-left: auto; }
+.navbar #navbar form.search > input { height: 32px; font-size: 14px; border-radius: 6px; }
+.navbar #navbar form.icons { display: none; }
+.navbar #navbar .site-ext { order: 40; display: flex; gap: 12px; }
+.navbar #navbar .site-ext a { color: var(--site-muted); font-size: 14px; white-space: nowrap; }
+.navbar #navbar .site-ext a:hover { color: var(--site-accent); text-decoration: none; }
+@media (max-width: 767.98px) {
+  .navbar #navbar { margin-left: 0; }
+  .navbar #navbar form.search { margin-left: 0; }
+  .navbar #navbar .site-ext { display: none; }
+}
+
+/* ---- 左の目次・本文・右の目次の配置 ---- */
+body > main.container-xxl { max-width: none; padding: 0; }
+body:not([data-search])[data-layout=""] > main > .toc-offcanvas,
+body:not([data-search])[data-layout=conceptual] > main > .toc-offcanvas {
+  flex: 0 0 var(--site-sidebar-w); max-width: var(--site-sidebar-w);
+  background: var(--site-sidebar-bg); border-right: 1px solid var(--site-border);
+}
+@media (min-width: 768px) {
+  body:not([data-search])[data-layout=""] > main > .toc-offcanvas,
+  body:not([data-search])[data-layout=conceptual] > main > .toc-offcanvas {
+    top: var(--site-topbar-h);
+    height: calc(100vh - var(--site-topbar-h)); max-height: calc(100vh - var(--site-topbar-h));
+  }
+  body:not([data-search])[data-layout=""] > main > .toc-offcanvas .offcanvas-body {
+    padding: 20px 12px 48px;
+  }
+  body:not([data-search])[data-layout=""] > main > .affix,
+  body:not([data-search])[data-layout=conceptual] > main > .affix {
+    top: var(--site-topbar-h); max-height: calc(100vh - var(--site-topbar-h));
+    padding: 32px 20px 32px 0;
+  }
+}
+@media (max-width: 767.98px) {
+  body:not([data-search])[data-layout=""] > main > .toc-offcanvas,
+  body:not([data-search])[data-layout=conceptual] > main > .toc-offcanvas { flex: 0; max-width: none; border-right: 0; }
+}
+body:not([data-search])[data-layout=""] > main > .content,
+body:not([data-search])[data-layout=conceptual] > main > .content {
+  margin: 0; padding: 32px 48px 120px;
+}
+body > main > .content > * { width: 100%; max-width: 880px; margin-left: auto; margin-right: auto; }
+@media (max-width: 960px) {
+  body:not([data-search])[data-layout=""] > main > .content,
+  body:not([data-search])[data-layout=conceptual] > main > .content { padding: 24px 16px 96px; }
+}
+@media (min-width: 768px) {
+  body > main > .content > article [id] { scroll-margin-top: calc(var(--site-topbar-h) + 16px); }
+}
+
+/* 左の目次（page.html の .toc と同じ見た目） */
+.toc ul { font-size: 14px; line-height: 1.5; }
+.toc li { margin: 0; }
+.toc li > a {
+  display: block; padding: 5px 10px; border-radius: 6px;
+  color: var(--site-fg); border-left: 3px solid transparent;
+}
+.toc li > a:hover, .toc li > a:focus { background: var(--site-hover-bg); text-decoration: none; }
+.toc li.active > a {
+  color: var(--site-accent); background: var(--site-accent-bg);
+  border-left-color: var(--site-accent); border-radius: 0 6px 6px 0;
+}
+.toc li.expander > a { font-weight: 600; }
+.toc li li.active > a { font-weight: 400; }
+.toc .expand-stub::before { margin-top: 0.55em; color: var(--site-muted); }
+.toc form.filter > input { height: 32px; font-size: 14px; border-radius: 6px; background: var(--site-bg); }
+
+/* 右の目次（この記事の中） */
+.affix { font-size: 13px; line-height: 1.5; }
+.affix h5 { font-weight: 600; text-transform: none; letter-spacing: 0; font-size: 13px; color: var(--site-muted); }
+.affix ul li { margin: 0.3rem 0; }
+.affix ul li a.link-secondary { color: var(--site-muted) !important; }
+.affix ul li a.link-body-emphasis { color: var(--site-fg) !important; font-weight: 600; }
+
+/* 上の「API リファレンス」のパンくず */
+#breadcrumb { font-size: 14px; }
+#breadcrumb .breadcrumb { margin-bottom: 0.6rem; }
+
+/* ---- 本文（page.html と同じ大きさ・間隔） ---- */
+article { line-height: 1.8; }
+article h1, article h2, article h3, article h4 { line-height: 1.4; font-weight: 700; }
+article h1 { font-size: 2em; margin: 0 0 0.6em; }
+article h2 { font-size: 1.55em; margin: 2.6em 0 0.8em; padding-top: 1.2em; border-top: 1px solid var(--site-border); }
+article h1 + h2, article h1 + .facts + .markdown + h2 { margin-top: 1.2em; }
+article h3 { font-size: 1.22em; margin: 2em 0 0.6em; }
+article h4 { font-size: 1.05em; margin: 1.6em 0 0.5em; }
+article p, article ul, article ol, article dl, article table { margin-bottom: 1em; }
+article .header-action { font-size: 0.7em; vertical-align: middle; }
+article .facts { font-size: 14px; }
+:not(pre) > code {
+  padding: 0.12em 0.38em; border-radius: 5px;
+  background: var(--site-hover-bg); color: var(--site-fg); font-size: 0.88em;
+}
+article pre {
+  margin: 1.2em 0 1.4em; padding: 14px 16px; border: 1px solid var(--site-border); border-radius: 8px;
+  background: var(--site-code-bg); font-size: 13.5px; line-height: 1.6;
+}
+/* コードの色分け（highlight.js）の背景は付けない（枠の背景だけにする） */
+article pre code, article pre code.hljs { padding: 0 !important; background: transparent !important; font-size: inherit; }
+article table { font-size: 0.92em; line-height: 1.6; }
+article th, article td { border-color: var(--site-border) !important; padding: 6px 12px !important; }
+article th { background: var(--site-sidebar-bg) !important; font-weight: 600; }
+.next-article { border-color: var(--site-border) !important; }
+
+/* ---- 下の帯 ---- */
+body > footer { height: auto; padding: 16px 0; font-size: 13px; color: var(--site-muted) !important; border-color: var(--site-border) !important; }
+body > footer > .container-xxl { max-width: none; padding: 0 20px; }

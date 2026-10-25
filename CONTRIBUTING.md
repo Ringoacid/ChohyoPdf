@@ -63,6 +63,7 @@ dotnet run --project tools/ChohyoPdf.Designer
 | デザイナーの説明書 | `docs/designer.md`（直接編集します）。画面写真と動画は [デザイナーの README](tools/ChohyoPdf.Designer/README.md#説明書の画像と動画) |
 | API リファレンス | `src/ChohyoPdf` のドキュメントコメント（`///`）。設定は `docs/api/docfx.json` |
 | サイトの見た目（CSS・JavaScript） | `docs/tools/site/page.html`（全ページ共通）、`docs/tools/site/home.html`（トップページの本文） |
+| API リファレンスの見た目 | `docs/api/template/public/main.css`・`main.js`（DocFX のテンプレートに足して、ほかのページと同じ色・フォント・上部のバーにする。`page.html` の見た目を変えたら合わせる）、`docs/api/template/token.json`（見出しなどの日本語の文言） |
 
 編集したら、次のコマンドを実行します。
 

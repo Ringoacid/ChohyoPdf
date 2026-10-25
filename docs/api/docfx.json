@@ -32,7 +32,8 @@
     "output": "../../_site/api",
     "template": [
       "default",
-      "modern"
+      "modern",
+      "template"
     ],
     "globalMetadata": {
       "_appName": "ChohyoPdf",
