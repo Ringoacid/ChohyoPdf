@@ -829,6 +829,38 @@
                 <CheckBox Content="枠の幅で折り返す" IsChecked="{Binding Wrap}" Margin="0,6,0,2" />
                 <CheckBox Content="入りきらないときは縮小する" IsChecked="{Binding ShrinkToFit}" />
                 <TextBlock Style="{StaticResource Hint}" Margin="0,10,0,0" Text="フォント・大きさ・色・揃えは、上の書式バーで変えます。" />
+
+                <TextBlock Text="タブ位置" Style="{StaticResource SectionHeader}" />
+                <ItemsControl ItemsSource="{Binding TabStops}" Focusable="False">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Margin="0,2,0,4">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="56" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="4" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBox Text="{Binding Position, StringFormat=0.##}" ToolTip="位置（mm）。文字を置く範囲の左端から測ります" AutomationProperties.Name="タブ位置（mm）" />
+                                <ComboBox Grid.Column="1" Margin="4,0,0,0" ItemsSource="{x:Static vm:Choices.TabAlignments}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Alignment}"
+                                          AutomationProperties.Name="タブ位置での揃え" />
+                                <ComboBox Grid.Column="3" ItemsSource="{x:Static vm:Choices.TabLeaders}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Leader}"
+                                          ToolTip="リーダー（タブで空いた所を埋める線）" AutomationProperties.Name="リーダー" />
+                                <Button Grid.Column="4" Style="{StaticResource IconButton}" Content="&#xE711;" FontSize="9" Padding="6,4" Margin="2,0,0,0" ToolTip="このタブ位置を削除"
+                                        Command="{Binding DataContext.RemoveTabStopCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}" />
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <Button HorizontalAlignment="Left" Margin="0,4,0,0" Command="{Binding DataContext.AddTabStopCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#xE710;" FontFamily="{StaticResource IconFont}" FontSize="10" VerticalAlignment="Center" Margin="0,0,6,0" />
+                        <TextBlock Text="タブ位置を追加" />
+                    </StackPanel>
+                </Button>
+                <TextBlock Style="{StaticResource Hint}" Margin="0,4,0,0" TextWrapping="Wrap"
+                           Text="文字の途中の Tab は、次のタブ位置まで進みます（品名……金額 のように、点線でつなげます）。位置は mm で、文字を置く範囲の左端から測ります。箇条書きでは、行頭の Tab は入れ子、行の途中の Tab がタブ位置です。" />
             </StackPanel>
         </DataTemplate>
 

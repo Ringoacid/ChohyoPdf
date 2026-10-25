@@ -165,6 +165,7 @@ namespace ChohyoPdf.Designer.Model
         private TextListStyle _listStyle;
         private string? _bullet;
         private ListNumberStyle _numberStyle;
+        private ObservableCollection<TextTabStop>? _tabStops;
 
         public override string KindName => "テキスト";
 
@@ -228,6 +229,12 @@ namespace ChohyoPdf.Designer.Model
         public ListNumberStyle NumberStyle { get => _numberStyle; set => Set(ref _numberStyle, value); }
 
         /// <summary>
+        /// タブ位置。文字の途中のタブ（箇条書きでは行頭以外のタブ）は、次のタブ位置まで進む。
+        /// null なら指定なし（既定の間隔で進む）。空にしたときも null にする（タブ位置のないファイルの保存形式を変えないため）。
+        /// </summary>
+        public ObservableCollection<TextTabStop>? TabStops { get => _tabStops; set => Set(ref _tabStops, value); }
+
+        /// <summary>
         /// 1 つの書式ではまとめて描けない（箇条書きにするか、上付き・下付き・ルビの記法がある。<see cref="TextMarkup"/>）。
         /// このときは、段落や箇条書きとして描く（PdfGraphics.DrawBlocks）。
         /// </summary>
@@ -235,6 +242,25 @@ namespace ChohyoPdf.Designer.Model
         public bool IsRich => ListStyle != TextListStyle.None || TextMarkup.HasMarkup(Text);
 
         internal static string? NullIfEmpty(string? value) => string.IsNullOrWhiteSpace(value) ? null : value;
+    }
+
+    /// <summary>テキストのタブ位置。</summary>
+    public sealed class TextTabStop : ObservableObject
+    {
+        private double _position = 50;
+        private TabAlignment _alignment = TabAlignment.Left;
+        private TabLeader _leader = TabLeader.None;
+
+        /// <summary>
+        /// 位置（mm）。文字を置く範囲の左端（枠と文字の間の余白の内側）から測る。箇条書きでは、項目の文字の始まりから測る。
+        /// </summary>
+        public double Position { get => _position; set => Set(ref _position, Math.Max(0, value)); }
+
+        /// <summary>タブ位置での文字の揃え。</summary>
+        public TabAlignment Alignment { get => _alignment; set => Set(ref _alignment, value); }
+
+        /// <summary>タブで空いた所を埋める線（点線など）。</summary>
+        public TabLeader Leader { get => _leader; set => Set(ref _leader, value); }
     }
 
     /// <summary>直線。</summary>

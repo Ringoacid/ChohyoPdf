@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using ChohyoPdf.Designer.Model;
 
 namespace ChohyoPdf.Designer.Rendering
@@ -101,6 +102,7 @@ namespace ChohyoPdf.Designer.Rendering
             LineSpacing = e.LineSpacing,
             ShrinkToFit = e.ShrinkToFit,
             Wrap = e.Wrap,
+            TabStops = e.TabStops?.Count > 0 ? e.TabStops.Select(t => new TabStop(Unit.Mm(t.Position), t.Alignment, t.Leader)).ToArray() : null,
         };
 
         public static string TextBoxOptionsCode(TextElement e)
@@ -111,7 +113,17 @@ namespace ChohyoPdf.Designer.Rendering
             if (e.LineSpacing != 1.2) init.Add("LineSpacing = " + Code.Number(e.LineSpacing));
             if (e.ShrinkToFit) init.Add("ShrinkToFit = true");
             if (!e.Wrap) init.Add("Wrap = false");
+            if (e.TabStops?.Count > 0)
+                init.Add("TabStops = new[] { " + string.Join(", ", e.TabStops.Select(TabStopCode)) + " }");
             return "new TextBoxOptions" + (init.Count == 0 ? "()" : Code.Initializer(init));
+        }
+
+        private static string TabStopCode(TextTabStop t)
+        {
+            var args = new List<string> { Code.Mm(t.Position) };
+            if (t.Alignment != TabAlignment.Left || t.Leader != TabLeader.None) args.Add("TabAlignment." + t.Alignment);
+            if (t.Leader != TabLeader.None) args.Add("TabLeader." + t.Leader);
+            return "new TabStop(" + string.Join(", ", args) + ")";
         }
 
         // ---- 表のセル ----

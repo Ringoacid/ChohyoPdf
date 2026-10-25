@@ -536,6 +536,20 @@ namespace ChohyoPdf.Designer.ViewModels
         /// <summary>空のページを、編集しているページの後ろに足す。</summary>
         public void AddPage() => InsertPage(_pageIndex + 1, new ReportPage());
 
+        /// <summary>
+        /// テキストにタブ位置を足す。最初の 1 つは、よく使う「文字を置く範囲の右端に右揃え・点線」にする（品名……金額 のような行）。
+        /// 2 つ目からは、最後のタブ位置の 20 mm 右に左揃えで足す。
+        /// </summary>
+        private void AddTabStop(TextElement t)
+        {
+            var tabs = t.TabStops ?? new ObservableCollection<TextTabStop>();
+            var tab = tabs.Count == 0
+                ? new TextTabStop { Position = Math.Round(Math.Max(0, t.Width - t.Padding * 2), 1), Alignment = TabAlignment.Right, Leader = TabLeader.Dots }
+                : new TextTabStop { Position = tabs.Max(x => x.Position) + 20 };
+            tabs.Add(tab);
+            if (t.TabStops == null) t.TabStops = tabs;
+        }
+
         /// <summary>編集しているページを複製して、後ろに足す。</summary>
         public void DuplicatePage()
         {
@@ -2103,6 +2117,8 @@ namespace ChohyoPdf.Designer.ViewModels
         public RelayCommand AddFontCommand { get; private set; } = null!;
         public RelayCommand InsertDetailTableCommand { get; private set; } = null!;
         public RelayCommand RemoveFontCommand { get; private set; } = null!;
+        public RelayCommand AddTabStopCommand { get; private set; } = null!;
+        public RelayCommand RemoveTabStopCommand { get; private set; } = null!;
         public RelayCommand AddPageCommand { get; private set; } = null!;
         public RelayCommand DuplicatePageCommand { get; private set; } = null!;
         public RelayCommand DeletePageCommand { get; private set; } = null!;
@@ -2200,6 +2216,14 @@ namespace ChohyoPdf.Designer.ViewModels
                 if ((p as ListDefinition ?? SelectedList) is ListDefinition list) InsertDetailTable(list);
             }, p => !_editingCommon && (p as ListDefinition ?? SelectedList) != null);
             RemoveFontCommand = new RelayCommand(p => { if (p is FontDefinition f) Report.Fonts.Remove(f); }, p => p is FontDefinition);
+            AddTabStopCommand = new RelayCommand(p => { if (p is TextElement t) AddTabStop(t); }, p => p is TextElement);
+            RemoveTabStopCommand = new RelayCommand(p =>
+            {
+                if (p is not TextTabStop tab || PrimarySelection is not TextElement t || t.TabStops == null) return;
+                t.TabStops.Remove(tab);
+                // 空になったら指定なしに戻す（保存形式を、タブ位置を使わないときと同じにする）
+                if (t.TabStops.Count == 0) t.TabStops = null;
+            }, p => p is TextTabStop);
             AddPageCommand = new RelayCommand(AddPage);
             // 全ページ共通の部品を編集しているときは、どのページを操作するか分かりにくいので、ページの複製・削除・移動はしない
             DuplicatePageCommand = new RelayCommand(DuplicatePage, () => !_editingCommon);

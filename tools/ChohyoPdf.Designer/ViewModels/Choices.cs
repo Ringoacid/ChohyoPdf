@@ -116,6 +116,22 @@ namespace ChohyoPdf.Designer.ViewModels
             new Choice(ListNumberStyle.UpperRoman, "I."),
         };
 
+        public static IReadOnlyList<Choice> TabAlignments { get; } = new[]
+        {
+            new Choice(TabAlignment.Left, "左揃え"),
+            new Choice(TabAlignment.Center, "中央揃え"),
+            new Choice(TabAlignment.Right, "右揃え"),
+            new Choice(TabAlignment.Decimal, "小数点揃え"),
+        };
+
+        public static IReadOnlyList<Choice> TabLeaders { get; } = new[]
+        {
+            new Choice(TabLeader.None, "なし"),
+            new Choice(TabLeader.Dots, "点線（……）"),
+            new Choice(TabLeader.Dashes, "破線（- - -）"),
+            new Choice(TabLeader.Line, "実線（＿＿）"),
+        };
+
         public static IReadOnlyList<Choice> FieldKinds { get; } = new[]
         {
             new Choice(FieldKind.Text, "文字列"),

@@ -376,6 +376,37 @@ namespace ChohyoPdf.Designer.Tests
             AssertSameAsRenderer(report);
         }
 
+        [Fact]
+        public void TabStops_MatchRenderer()
+        {
+            var r = new ReportDefinition { Name = "タブ" };
+            r.Fields.Add(new FieldDefinition { Name = "金額", Kind = FieldKind.Number, SampleValue = "1234.5", Format = "#,0.0" });
+            var tabs = new System.Collections.ObjectModel.ObservableCollection<TextTabStop>
+            {
+                new TextTabStop { Position = 30 },
+                new TextTabStop { Position = 80, Alignment = TabAlignment.Right, Leader = TabLeader.Dots },
+            };
+            // 普通の文字・記法のある文字・箇条書き（行頭のタブは入れ子、行の途中のタブはタブ位置）
+            r.Pages[0].Elements.Add(new TextElement { Text = "品名\t数量\t{金額}\n別の行\t1\t2,000", X = 10, Y = 10, Width = 90, Height = 20, TabStops = tabs });
+            r.Pages[0].Elements.Add(new TextElement { Text = "面積\tm<sup>2</sup>\t{金額}", X = 10, Y = 40, Width = 90, Height = 10, Padding = 2,
+                TabStops = new System.Collections.ObjectModel.ObservableCollection<TextTabStop> { new TextTabStop { Position = 40, Alignment = TabAlignment.Center, Leader = TabLeader.Line } } });
+            r.Pages[0].Elements.Add(new TextElement { Text = "項目\t100\n\t入れ子\t200\n項目\t300", X = 10, Y = 60, Width = 90, Height = 25, ListStyle = TextListStyle.Numbered,
+                TabStops = new System.Collections.ObjectModel.ObservableCollection<TextTabStop> { new TextTabStop { Position = 60, Alignment = TabAlignment.Decimal, Leader = TabLeader.Dashes } } });
+            r.Pages[0].Elements.Add(new TextElement { Text = "空のタブ位置\tは指定なし", X = 10, Y = 90, Width = 90, Height = 10, TabStops = new System.Collections.ObjectModel.ObservableCollection<TextTabStop>() });
+            if (!TestFonts.Apply(r)) return;
+            string code = CSharpGenerator.Generate(r);
+            Assert.Contains("TabStops = new[] { new TabStop(Unit.Mm(30)), new TabStop(Unit.Mm(80), TabAlignment.Right, TabLeader.Dots) }", code);
+            Assert.Single(System.Text.RegularExpressions.Regex.Matches(code, "TabLeader.Line"));
+            AssertSameAsRenderer(r);
+
+            // タブ位置がなければ（空でも）保存しない
+            string json = ReportSerializer.ToJson(new ReportDefinition { Pages = { new ReportPage { Elements = { new TextElement() } } } });
+            Assert.DoesNotContain("tabStops", json);
+            var loaded = (TextElement)ReportSerializer.FromJson(ReportSerializer.ToJson(r)).Pages[0].Elements[0];
+            Assert.Equal(2, loaded.TabStops!.Count);
+            Assert.Equal(TabLeader.Dots, loaded.TabStops[1].Leader);
+        }
+
         /// <summary>上付き・下付き・ルビの記法と、箇条書きを使ったデザイン。</summary>
         internal static ReportDefinition RichText(int rows)
         {
