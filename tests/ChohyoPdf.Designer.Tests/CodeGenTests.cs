@@ -151,7 +151,8 @@ namespace ChohyoPdf.Designer.Tests
         public void BuiltInFields_MatchRenderer(int pages, int rows)
         {
             const string all = "{ページ番号:000}/{総ページ数:0}|{今日}|{今日:yyyy年M月d日（ddd）}|{今日:ggy年M月d日}|{和暦}|{和暦年}"
-                + "|{現在日時}|{現在時刻}|{現在時刻:HH時mm分}|{今年}|{今年:0000}|{今月:00}|{期限:ggy年M月}|{空の日付:ggy年}";
+                + "|{現在日時}|{現在時刻}|{現在時刻:HH時mm分}|{今年}|{今年:0000}|{今月:00}|{期限:ggy年M月}|{空の日付:ggy年}"
+                + "|{ページ番号:ローマ数字}/{総ページ数:漢数字}|{ページ番号:丸数字}|{ページ番号:全角}|{ページ番号:英字小文字}|{今月:漢数字}";
             var r = new ReportDefinition { Name = "組み込み" };
             r.Fields.Add(new FieldDefinition { Name = "期限", Kind = FieldKind.Date, SampleValue = "1989/1/7" });
             r.Fields.Add(new FieldDefinition { Name = "空の日付", Kind = FieldKind.Date, SampleValue = "" });
@@ -173,7 +174,7 @@ namespace ChohyoPdf.Designer.Tests
             table.DetailSource = "行";
             table.DetailRowCount = 4;
             table.DetailRow.Cells[0].Text = "{今日}";
-            table.DetailRow.Cells[1].Text = "{ページ番号:00}";
+            table.DetailRow.Cells[1].Text = "{ページ番号:00} {ページ番号:ローマ数字小文字}";
             r.Pages[pages - 1].Elements.Add(table);
             if (!TestFonts.Apply(r)) return;
             var pdf = AssertSameAsRenderer(r);
@@ -181,6 +182,23 @@ namespace ChohyoPdf.Designer.Tests
             string code = CSharpGenerator.Generate(r);
             Assert.Contains("public static PdfDocument Create(組み込みData data, DateTime now)", code);
             Assert.Contains("FormatJapaneseDate(now.Date, \"ggy年M月d日\")", code);
+            // ローマ数字・漢数字などは、ChohyoPdf の PageNumberFormatter で文字列にする
+            Assert.Contains("PageNumberFormatter.Format(now.Month, PageNumberFormat.Kanji)", code);
+            if (rows > 0) Assert.Contains("PageNumberFormatter.Format(" + (pages == 1 ? "(pageIndex + 1)" : "pageNumber") + ", PageNumberFormat.UpperRoman)", code);
+        }
+
+        [Fact]
+        public void BuiltInFields_NumberStyleNames()
+        {
+            var page = TextTemplate.FindBuiltIn(TextTemplate.PageNumber)!;
+            Assert.Equal("IV", TextTemplate.FormatBuiltIn(page, "ローマ数字", default, 4, 9));
+            Assert.Equal("iv", TextTemplate.FormatBuiltIn(page, "ローマ数字小文字", default, 4, 9));
+            Assert.Equal("十二", TextTemplate.FormatBuiltIn(page, "漢数字", default, 12, 20));
+            Assert.Equal("１２", TextTemplate.FormatBuiltIn(page, "全角", default, 12, 20));
+            Assert.Equal("九", TextTemplate.FormatBuiltIn(TextTemplate.FindBuiltIn(TextTemplate.PageCount)!, "漢数字", default, 4, 9));
+            // 名前と少しでも違えば、これまでどおり .NET の数値の書式
+            Assert.Equal("004", TextTemplate.FormatBuiltIn(page, "000", default, 4, 9));
+            Assert.Equal("ローマ", TextTemplate.FormatBuiltIn(page, "ローマ", default, 4, 9));
         }
 
         [Theory]

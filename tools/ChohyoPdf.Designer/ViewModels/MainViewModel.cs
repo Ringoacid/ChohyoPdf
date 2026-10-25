@@ -1302,6 +1302,7 @@ namespace ChohyoPdf.Designer.ViewModels
                     example("今日", "yyyy年M月d日"),
                     example("今日", "ggy年M月d日"),
                     example(TextTemplate.PageNumber, "000"),
+                    example(TextTemplate.PageNumber, "ローマ数字"),
                     example("今月", "00"),
                 };
             }

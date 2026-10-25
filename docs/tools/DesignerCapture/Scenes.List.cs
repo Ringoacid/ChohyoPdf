@@ -193,6 +193,8 @@ internal sealed partial class Scenes
         Record("page-number.webp", () =>
         {
             _s.Click("ページ番号");
+            Thread.Sleep(500);
+            _s.Click("1 / 3");
             Thread.Sleep(800);
             _s.Click("差し込み結果を表示");
             Thread.Sleep(800);

@@ -1144,7 +1144,11 @@ namespace ChohyoPdf.Designer.CodeGen
         }
 
         private static string IntToString(string expr, string? format)
-            => expr + (format == null ? ".ToString(Culture)" : ".ToString(" + Code.String(format) + ", Culture)");
+        {
+            // ローマ数字・漢数字などは、ChohyoPdf の PageNumberFormatter で文字列にする
+            if (TextTemplate.NumberStyleOf(format) is PageNumberFormat style) return "PageNumberFormatter.Format(" + expr + ", PageNumberFormat." + style + ")";
+            return expr + (format == null ? ".ToString(Culture)" : ".ToString(" + Code.String(format) + ", Culture)");
+        }
 
         /// <summary>
         /// どこかの差し込み欄で、PDF を作る日時（{今日} など）を使うか。項目・一覧の列と同じ名前なら、そちらを使うので数えない。

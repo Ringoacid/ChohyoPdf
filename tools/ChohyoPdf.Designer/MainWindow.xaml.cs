@@ -191,14 +191,36 @@ namespace ChohyoPdf.Designer
         }
 
         /// <summary>
-        /// 「ページ番号」: 全ページ共通の部品として、用紙の下の中央に「{ページ番号} / {総ページ数}」を置く。
+        /// 「ページ番号」: ページ番号の形を選ぶメニューを開き、選んだ形のページ番号を、全ページ共通の部品として用紙の下の中央に置く。
         /// </summary>
         private void InsertPageNumber_Click(object sender, RoutedEventArgs e)
         {
+            string number = "{" + TextTemplate.PageNumber + "}", count = "{" + TextTemplate.PageCount + "}";
+            string Styled(string style) => "{" + TextTemplate.PageNumber + ":" + style + "}";
+            var menu = new ContextMenu();
+            foreach (var (header, text) in new[]
+            {
+                ("1 / 3", number + " / " + count),
+                ("- 1 -", "- " + number + " -"),
+                ("1 ページ", number + " ページ"),
+                ("i, ii, iii（ローマ数字の小文字）", Styled("ローマ数字小文字")),
+                ("I, II, III（ローマ数字）", Styled("ローマ数字")),
+                ("一, 二, 三（漢数字）", Styled("漢数字")),
+                ("①, ②, ③（丸数字）", Styled("丸数字")),
+                ("１ / ３（全角）", Styled("全角") + " / {" + TextTemplate.PageCount + ":全角}"),
+            })
+            {
+                string t = text;
+                menu.Items.Add(Item(header, () => InsertPageNumber(t)));
+            }
+            CommandBar.ShowBelow((FrameworkElement)sender, menu);
+        }
+
+        private void InsertPageNumber(string text)
+        {
             ViewModel.IsEditingCommon = true;
             double width = 70;
-            ViewModel.InsertText("{" + TextTemplate.PageNumber + "} / {" + TextTemplate.PageCount + "}",
-                (ViewModel.CurrentPageWidth - width) / 2, ViewModel.CurrentPageHeight - 15, width, TextAlignment.Center);
+            ViewModel.InsertText(text, (ViewModel.CurrentPageWidth - width) / 2, ViewModel.CurrentPageHeight - 15, width, TextAlignment.Center);
             // 用紙の下に置くので、見えるようにスクロールする
             if (ViewModel.PrimarySelection is ReportElement added) RevealElement(added);
         }

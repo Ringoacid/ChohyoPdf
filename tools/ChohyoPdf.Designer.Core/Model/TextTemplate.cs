@@ -163,7 +163,33 @@ namespace ChohyoPdf.Designer.Model
             object value = field.Value(now, pageNumber, pageCount);
             if (value is DateTime date) return FormatDate(date, format);
             int n = (int)value;
+            if (NumberStyleOf(format) is PageNumberFormat style) return PageNumberFormatter.Format(n, style);
             return format == null ? n.ToString(Culture) : n.ToString(format, Culture);
+        }
+
+        /// <summary>
+        /// ページ番号などの数値の組み込みの差し込み欄に使える、ローマ数字・漢数字などの書式の名前（{ページ番号:ローマ数字} のように書く）。
+        /// 書式全体がこの名前と同じときだけ使う（.NET の数値の書式では、これらの名前はそのままの文字になるだけなので、区別できる）。
+        /// </summary>
+        public static IReadOnlyList<(string Name, PageNumberFormat Format)> NumberStyleNames { get; } = new[]
+        {
+            ("ローマ数字", PageNumberFormat.UpperRoman),
+            ("ローマ数字小文字", PageNumberFormat.LowerRoman),
+            ("英字", PageNumberFormat.UpperLetter),
+            ("英字小文字", PageNumberFormat.LowerLetter),
+            ("全角", PageNumberFormat.FullWidthArabic),
+            ("丸数字", PageNumberFormat.CircledNumber),
+            ("漢数字", PageNumberFormat.Kanji),
+        };
+
+        /// <summary>書式がローマ数字・漢数字などの名前（<see cref="NumberStyleNames"/>）なら、その書式。</summary>
+        public static PageNumberFormat? NumberStyleOf(string? format)
+        {
+            foreach (var (name, style) in NumberStyleNames)
+            {
+                if (name == format) return style;
+            }
+            return null;
         }
 
         /// <summary>書式に元号（"gg"）があるか。あれば和暦で書く。</summary>

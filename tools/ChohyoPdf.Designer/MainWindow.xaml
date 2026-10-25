@@ -477,8 +477,8 @@
                         ToolTip="このページの後ろに、空のページを足します" />
                 <Button Style="{StaticResource BarButton}" c:CommandBar.Icon="&#xE8A1;" Content="ヘッダーとフッター" Command="{Binding DataContext.EditCommonCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                         ToolTip="すべてのページに描く部品（全ページ共通の部品）を編集します" />
-                <Button Style="{StaticResource BarButton}" c:CommandBar.Icon="#" c:CommandBar.IconFont="Segoe UI" Content="ページ番号" Click="InsertPageNumber_Click"
-                        ToolTip="用紙の下の中央に「{ページ番号} / {総ページ数}」を置きます（全ページ共通の部品になります）" />
+                <Button Style="{StaticResource BarButton}" c:CommandBar.Icon="#" c:CommandBar.IconFont="Segoe UI" c:CommandBar.IsDropDown="True" Content="ページ番号" Click="InsertPageNumber_Click"
+                        ToolTip="用紙の下の中央にページ番号を置きます（全ページ共通の部品になります。「1 / 3」「- 1 -」「i」「一」などの形を選べます）" />
                 <TextBlock Text="部品を選ぶと、ここに書式が出ます" Foreground="{StaticResource MutedText}" VerticalAlignment="Center" Margin="16,0,0,0" />
             </StackPanel>
         </DataTemplate>
@@ -491,8 +491,8 @@
                         <TextBlock Text="全ページ共通の部品" Foreground="{StaticResource AccentText}" FontWeight="SemiBold" VerticalAlignment="Center" />
                     </StackPanel>
                 </Border>
-                <Button Style="{StaticResource BarButton}" c:CommandBar.Icon="#" c:CommandBar.IconFont="Segoe UI" Content="ページ番号" Click="InsertPageNumber_Click"
-                        ToolTip="用紙の下の中央に「{ページ番号} / {総ページ数}」を置きます" />
+                <Button Style="{StaticResource BarButton}" c:CommandBar.Icon="#" c:CommandBar.IconFont="Segoe UI" c:CommandBar.IsDropDown="True" Content="ページ番号" Click="InsertPageNumber_Click"
+                        ToolTip="用紙の下の中央にページ番号を置きます（「1 / 3」「- 1 -」「i」「一」などの形を選べます）" />
                 <Button Style="{StaticResource BarButton}" c:CommandBar.Icon="&#xE787;" Content="日付" Click="InsertDate_Click" ToolTip="PDF を作った日（{今日}）を置きます" />
                 <Button Style="{StaticResource BarButton}" c:CommandBar.Icon="{}{ }" c:CommandBar.IconFont="Consolas" c:CommandBar.IsDropDown="True" Content="差し込み欄" Click="InsertFieldMenu_Click"
                         ToolTip="差し込み欄 {名前} を書いたテキストを置きます" />
